@@ -65,20 +65,27 @@ namespace ImmersiveAI
                         ModLog.Info($"[QuestBridge] Starting quest '{title}' for {npc?.Name} via IssueManager...");
 
                         bool ok = false;
-                        if (Campaign.Current?.IssueManager != null && npc != null)
-                        {
-                            ok = Campaign.Current.IssueManager.StartIssueQuest(npc);
-                        }
-
-                        if (!ok && issueToStart.IssueQuest == null)
+                        if (issueToStart.IssueQuest == null)
                         {
                             ok = issueToStart.StartIssueWithQuest();
                         }
 
-                        if (issueToStart.IssueQuest != null && !issueToStart.IssueQuest.IsOngoing)
+                        if (issueToStart.IssueQuest != null)
                         {
-                            issueToStart.IssueQuest.StartQuest();
+                            if (Campaign.Current?.QuestManager != null && !Campaign.Current.QuestManager.Quests.Contains(issueToStart.IssueQuest))
+                            {
+                                issueToStart.IssueQuest.StartQuest();
+                            }
                             ok = true;
+                        }
+                        else if (Campaign.Current?.IssueManager != null && npc != null)
+                        {
+                            ok = Campaign.Current.IssueManager.StartIssueQuest(npc);
+                            var questFromIssue = QuestTool.GetActiveQuest(npc);
+                            if (questFromIssue != null && Campaign.Current?.QuestManager != null && !Campaign.Current.QuestManager.Quests.Contains(questFromIssue))
+                            {
+                                questFromIssue.StartQuest();
+                            }
                         }
 
                         if (ok)

@@ -46,7 +46,10 @@ namespace ImmersiveAI.Tools
             {
                 if (npc == null || Campaign.Current?.IssueManager == null) return null;
                 if (Campaign.Current.IssueManager.Issues.TryGetValue(npc, out var issue) && issue != null)
-                    return issue;
+                {
+                    if (!issue.IsSolvingWithQuest && !issue.IsSolvingWithAlternative && !issue.IsSolvingWithLordSolution)
+                        return issue;
+                }
                 return null;
             }
             catch { return null; }
