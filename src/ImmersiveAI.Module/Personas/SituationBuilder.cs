@@ -791,9 +791,9 @@ namespace ImmersiveAI.Personas
             {
                 Try(() =>
                 {
-                    string desc = PromptFiles.LoadPlayerDescription();
-                    if (!string.IsNullOrWhiteSpace(desc))
-                        sentences.Add("What my eyes see of their appearance and bearing: " + desc.Trim());
+                    string visual = BuildPlayerVisual(partner);
+                    if (!string.IsNullOrWhiteSpace(visual))
+                        sentences.Add("What my eyes see of their appearance and bearing: " + visual.Trim());
                 });
             }
 
@@ -955,6 +955,86 @@ namespace ImmersiveAI.Personas
         }
 
         private static string Name(Hero h) => h?.Name?.ToString() ?? "Unknown";
+
+        private static string BuildPlayerVisual(Hero player)
+        {
+            var sb = new System.Text.StringBuilder();
+
+            // 1. Custom Player Description (bearing, tokens, scars, accents from player_description.txt)
+            string custom = PromptFiles.LoadPlayerDescription()?.Trim() ?? string.Empty;
+            if (!string.IsNullOrEmpty(custom))
+            {
+                sb.Append(custom);
+                if (!custom.EndsWith(".") && !custom.EndsWith("!") && !custom.EndsWith("?"))
+                    sb.Append(".");
+            }
+
+            // 2. Physical build from BodyProperties (physique, musculature)
+            try
+            {
+                var bp = player.BodyProperties;
+                float build = bp.Build;
+                float weight = bp.Weight;
+                string buildWord = null;
+                if (build > 0.65f && weight > 0.65f) buildWord = "a powerfully built, broad-shouldered frame";
+                else if (build > 0.65f) buildWord = "an athletic, muscular frame";
+                else if (weight > 0.70f) buildWord = "a heavy, stout build";
+                else if (build < 0.35f && weight < 0.35f) buildWord = "a lean, slender build";
+                else if (build < 0.35f) buildWord = "a slight, lithe build";
+
+                if (buildWord != null)
+                {
+                    if (sb.Length > 0) sb.Append(" ");
+                    sb.Append($"Has {buildWord}.");
+                }
+            }
+            catch { }
+
+            // 3. Dynamic Equipment currently worn
+            try
+            {
+                var eq = (TaleWorlds.MountAndBlade.Mission.Current != null && TaleWorlds.MountAndBlade.Mission.Current.DoesMissionRequireCivilianEquipment)
+                    ? player.CivilianEquipment
+                    : (player.BattleEquipment ?? player.CivilianEquipment);
+
+                if (eq != null)
+                {
+                    string ItemAt(TaleWorlds.Core.EquipmentIndex i) { try { return eq[i].Item?.Name?.ToString(); } catch { return null; } }
+
+                    var armorPieces = new System.Collections.Generic.List<string>();
+                    var head = ItemAt(TaleWorlds.Core.EquipmentIndex.Head);
+                    var body = ItemAt(TaleWorlds.Core.EquipmentIndex.Body);
+                    var cape = ItemAt(TaleWorlds.Core.EquipmentIndex.Cape);
+
+                    if (!string.IsNullOrWhiteSpace(head)) armorPieces.Add(head);
+                    if (!string.IsNullOrWhiteSpace(body)) armorPieces.Add(body);
+                    if (!string.IsNullOrWhiteSpace(cape)) armorPieces.Add(cape);
+
+                    var arms = new[] { TaleWorlds.Core.EquipmentIndex.Weapon0, TaleWorlds.Core.EquipmentIndex.Weapon1,
+                        TaleWorlds.Core.EquipmentIndex.Weapon2, TaleWorlds.Core.EquipmentIndex.Weapon3 }
+                        .Select(ItemAt).Where(n => !string.IsNullOrWhiteSpace(n)).Distinct().ToList();
+
+                    var horse = ItemAt(TaleWorlds.Core.EquipmentIndex.Horse);
+
+                    var gearParts = new System.Collections.Generic.List<string>();
+                    if (armorPieces.Count > 0)
+                        gearParts.Add($"wearing {JoinAnd(armorPieces)}");
+                    if (arms.Count > 0)
+                        gearParts.Add($"armed with {JoinAnd(arms)}");
+                    if (!string.IsNullOrWhiteSpace(horse) && TaleWorlds.MountAndBlade.Mission.Current == null)
+                        gearParts.Add($"mounted on {A(horse)} {horse}");
+
+                    if (gearParts.Count > 0)
+                    {
+                        if (sb.Length > 0) sb.Append(" ");
+                        sb.Append("Presently " + string.Join(", ", gearParts) + ".");
+                    }
+                }
+            }
+            catch { }
+
+            return sb.ToString().Trim();
+        }
 
         // Individual game data lookups can throw on edge-case heroes; a missing fact should never
         // sink the whole situation block, so each is attempted independently.
