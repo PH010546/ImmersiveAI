@@ -218,6 +218,11 @@ namespace ImmersiveAI.Mcm
         [SettingPropertyGroup("Life of the NPCs", GroupOrder = 2)]
         public bool EnableConversationMarriage { get; set; } = true;
 
+        [SettingPropertyBool("Quest dialogue bridge", Order = 12, RequireRestart = false,
+            HintText = "Allows discovering, taking on, and reporting native Bannerlord issues and quests directly through immersive natural language conversation with village notables, merchants, and lords.")]
+        [SettingPropertyGroup("Life of the NPCs", GroupOrder = 2)]
+        public bool EnableQuestDialogueBridge { get; set; } = true;
+
         [SettingPropertyBool("Companion brides & grooms", Order = 13, RequireRestart = false,
             HintText = "Allows marrying a wanderer who rides as your companion (vanilla forbids it). At the wedding they are raised to lordship the game's own way - they keep their place and duties in your party, and the marriage is fully real. Off: noble spouses only.")]
         [SettingPropertyGroup("Life of the NPCs", GroupOrder = 2)]

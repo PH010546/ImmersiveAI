@@ -280,28 +280,6 @@ namespace ImmersiveAI
             return Tools.WorldRecall.ResolveAsync(call, npc);
         }
 
-        private string ResolveAcceptQuest(Core.Llm.ToolCall call, Hero npc, Tools.QuestTool.Tally? quest)
-        {
-            var issue = Tools.QuestTool.GetAvailableIssue(npc);
-            if (issue != null && quest != null)
-            {
-                quest.AcceptedIssue = issue;
-                return "The agreement is struck. The task is officially given into their hands. I speak on in my own words, thanking them or giving parting advice.";
-            }
-            return "No troubled matter is presently available to give.";
-        }
-
-        private string ResolveReportQuest(Core.Llm.ToolCall call, Hero npc, Tools.QuestTool.Tally? quest)
-        {
-            var activeQuest = Tools.QuestTool.GetActiveQuest(npc);
-            if (activeQuest != null && quest != null)
-            {
-                quest.ReportedQuest = activeQuest;
-                return "I acknowledge the completion of the deed with gratitude. I speak on in my own words, offering our thanks and rewards.";
-            }
-            return "No ongoing task was found.";
-        }
-
         // One search query sharpened before it goes to the web: the NPC asks in her own immersed
         // words, and this small plain call recasts them as a query that actually finds the answer
         // ("In Bannerlord how to…"), seeing the last words of the exchange for intent. Best-effort:
@@ -1690,8 +1668,7 @@ namespace ImmersiveAI
             if (troth != null) await EnsureCourtshipReadyAsync(npc).ConfigureAwait(false);
 
             // Native Quest / Issue dialogue bridge tally
-            var quest = (Tools.QuestTool.GetAvailableIssue(npc) != null || Tools.QuestTool.GetActiveQuest(npc) != null)
-                ? new Tools.QuestTool.Tally() : null;
+            var quest = CanBridgeQuests(npc) ? new Tools.QuestTool.Tally() : null;
 
             var ctx = BuildContext(npc, situationOverride, bargainRides: bargain != null,
                 trothRides: troth != null, blessBride: bless?.Bride);
@@ -1708,42 +1685,7 @@ namespace ImmersiveAI
             var rawReply = await CompleteSpokenAsync(messages, npc, heart, memory, bargain, troth, bless, quest).ConfigureAwait(false);
             var reply = string.IsNullOrWhiteSpace(rawReply) ? "..." : rawReply.Trim();
 
-            if (quest?.AcceptedIssue != null)
-            {
-                var issueToStart = quest.AcceptedIssue;
-                MainThreadDispatcher.Enqueue(() =>
-                {
-                    try
-                    {
-                        if (issueToStart != null && issueToStart.IsInitialized)
-                        {
-                            bool ok = issueToStart.StartIssueWithQuest();
-                            var title = issueToStart.Title?.ToString() ?? "Quest";
-                            if (ok)
-                                InformationManager.DisplayMessage(new InformationMessage($"Quest Started: {title}", new Color(0.4f, 0.9f, 0.4f, 1f)));
-                        }
-                    }
-                    catch (Exception ex) { ModLog.Error("starting quest via dialogue", ex); }
-                });
-            }
-
-            if (quest?.ReportedQuest != null)
-            {
-                var questToReport = quest.ReportedQuest;
-                MainThreadDispatcher.Enqueue(() =>
-                {
-                    try
-                    {
-                        if (questToReport != null && !questToReport.IsFinalized)
-                        {
-                            questToReport.CompleteQuestWithSuccess();
-                            var title = questToReport.Title?.ToString() ?? "Quest";
-                            InformationManager.DisplayMessage(new InformationMessage($"Quest Completed: {title}", new Color(0.95f, 0.85f, 0.35f, 1f)));
-                        }
-                    }
-                    catch (Exception ex) { ModLog.Error("completing quest via dialogue", ex); }
-                });
-            }
+            DispatchQuestOutcomes(quest);
 
             // How the exchange moved her heart. In the tool shape she moves it herself mid-reply
             // (move_heart, already applied) — but only a call that actually CAME counts as weighed:

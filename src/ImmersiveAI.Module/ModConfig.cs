@@ -658,6 +658,11 @@ namespace ImmersiveAI
         /// seeded once from it, so a love already spoken is honored. Default on.</summary>
         public bool EnableConversationMarriage { get; set; } = true;
 
+        /// <summary>Native Quest & Issue Dialogue Bridge: allows discovering, taking on, and reporting
+        /// native Bannerlord issues and quests directly through immersive natural language conversation
+        /// with village notables, merchants, and lords, without leaving dialogue for rigid menus. Default on.</summary>
+        public bool EnableQuestDialogueBridge { get; set; } = true;
+
         /// <summary>When true (the default — vanilla forbids it, but here it is the point: the first
         /// true bonds are with companions), a wanderer riding as the player's companion can be wed
         /// through the courtship road. At the wedding seal she is raised to lordship by the game's
