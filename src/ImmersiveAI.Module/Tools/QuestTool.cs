@@ -24,12 +24,11 @@ namespace ImmersiveAI.Tools
         }
 
         public static readonly ToolDefinition AcceptTool = new ToolDefinition(AcceptQuest,
-            "Formally hand over the spoken issue or task to the traveler who has agreed to take it upon themselves. " +
-            "Call this ONLY when the traveler has explicitly offered in their words to take on my problem and I accept their aid. " +
-            "This seals the task into the campaign record and begins their quest.",
+            "Formally hand over the spoken issue or task to the traveler who has agreed in words to take it upon themselves. " +
+            "Call this tool to seal the task into the campaign record and begin their quest in the game engine.",
             new[]
             {
-                new ToolParameter("confirmation", "A brief phrase confirming the task agreed upon.")
+                new ToolParameter("confirmation", "A brief phrase confirming the task agreed upon.", required: false)
             });
 
         public static readonly ToolDefinition ReportTool = new ToolDefinition(ReportQuest,
@@ -37,7 +36,7 @@ namespace ImmersiveAI.Tools
             "granting them our gratitude and rewards.",
             new[]
             {
-                new ToolParameter("result", "Confirmation of the quest result.")
+                new ToolParameter("result", "Confirmation of the quest result.", required: false)
             });
 
         public static IssueBase? GetAvailableIssue(Hero npc)

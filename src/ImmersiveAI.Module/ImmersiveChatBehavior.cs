@@ -3407,6 +3407,7 @@ namespace ImmersiveAI
             // The bargain's whisper is keyed to the caller's tally (the live reply trunk alone), so
             // whisper and tool always ride together — a letter or a greeting never speaks of it.
             persona.CanStrikeBargain = bargainRides;
+            persona.CanBridgeQuests = CanBridgeQuests(npc);
             // The troth's and the blessing's whispers ride the same tally-keyed way; the ROAD
             // section itself rides every sheet while a road is walked (a betrothed soul writing a
             // letter knows she is betrothed), tool or no tool.
