@@ -13,6 +13,7 @@ using ImmersiveAI.Personas;
 using ImmersiveAI.Sentiments;
 using TaleWorlds.CampaignSystem;
 using TaleWorlds.CampaignSystem.Actions;
+using TaleWorlds.CampaignSystem.CharacterDevelopment;
 using TaleWorlds.CampaignSystem.Conversation;
 using TaleWorlds.CampaignSystem.Encounters;
 using TaleWorlds.CampaignSystem.GameState;
@@ -1863,9 +1864,25 @@ namespace ImmersiveAI
                 {
                     bool isBattleMercy = detail == EndCaptivityDetail.ReleasedAfterBattle;
                     var type = isBattleMercy ? SentimentType.BattlefieldMercy : SentimentType.FreedFromCaptivity;
-                    string desc = isBattleMercy
-                        ? "spared me upon the battlefield and granted me freedom without bonds"
-                        : "granted me release and freedom from captivity";
+
+                    // Trait-aware perception of mercy: calculating/suspicious lords suspect ulterior motives
+                    int honor = prisoner.GetTraitLevel(DefaultTraits.Honor);
+                    int calculating = prisoner.GetTraitLevel(DefaultTraits.Calculating);
+                    bool isSuspicious = calculating > 0 || honor < 0;
+
+                    string desc;
+                    if (isBattleMercy)
+                    {
+                        desc = isSuspicious
+                            ? "spared me upon the battlefield without ransom; though I still weigh what subtle scheme or play for influence lies behind such mercy, I walk free by their hand"
+                            : "spared me upon the battlefield with chivalric honor and granted me freedom without bonds";
+                    }
+                    else
+                    {
+                        desc = isSuspicious
+                            ? "granted me release from captivity; I take my freedom, though I keep my guard up"
+                            : "granted me release and freedom from captivity with true honor";
+                    }
 
                     _sentimentLedger?.RecordEvent(new SentimentEvent
                     {
@@ -1880,7 +1897,8 @@ namespace ImmersiveAI
                         Weight = 4
                     }, NpcPaths.CampaignRoot);
 
-                    ApplyRelationShift(prisoner, isBattleMercy ? 15 : 10, isEpic: true);
+                    // Note: Numerical relation shift is handled natively by the Bannerlord game engine;
+                    // IA records the lived memory and psychological impression for dialogue.
                 }
             }
             catch { /* best-effort sentiment recording */ }
