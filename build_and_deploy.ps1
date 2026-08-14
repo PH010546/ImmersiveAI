@@ -1,10 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Immersive AI 一鍵編譯與自動部署腳本
-.DESCRIPTION
-    1. 自動識別 .NET SDK 8.0
-    2. 編譯 ImmersiveAI 專案 (Release 模式)
-    3. 自動將產出的 DLL、Harmony、SubModule.xml、GUI 複製到騎砍 Modules 目錄
+    Immersive AI 一鍵編譯與自動部署腳本 (支援遊戲目錄與 Vortex Staging 同步)
 #>
 
 $ErrorActionPreference = "Stop"
@@ -12,6 +8,7 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = $PSScriptRoot
 $GameModuleDir = "C:\Game\Steam\steamapps\common\Mount & Blade II Bannerlord\Modules\ImmersiveAI"
 $BinTargetDir = Join-Path $GameModuleDir "bin\Win64_Shipping_Client"
+$VortexStagingRoot = "$env:APPDATA\Vortex\mountandblade2bannerlord\mods"
 
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host "       Immersive AI 一鍵編譯與自動部署至遊戲目錄" -ForegroundColor Cyan
@@ -51,39 +48,59 @@ try {
     Pop-Location
 }
 
-Write-Host "`n[2/3] 檢查目標遊戲模組目錄..." -ForegroundColor Yellow
+Write-Host "`n[2/3] 檢查目標部署目錄..." -ForegroundColor Yellow
 
 if (-not (Test-Path $BinTargetDir)) {
     New-Item -ItemType Directory -Force -Path $BinTargetDir | Out-Null
 }
 
+# 找出 Vortex Staging 中的 ImmersiveAI 資料夾 (若有)
+$vortexTargets = @()
+if (Test-Path $VortexStagingRoot) {
+    Get-ChildItem -Path $VortexStagingRoot -Directory | Where-Object { $_.Name -like "*ImmersiveAI*" } | ForEach-Object {
+        $vortexTargets += $_.FullName
+    }
+}
+
 # 2. 複製產出檔案
-Write-Host "`n[3/3] 部署模組檔案至 $GameModuleDir ..." -ForegroundColor Yellow
+Write-Host "`n[3/3] 部署模組檔案至遊戲目錄..." -ForegroundColor Yellow
 
 $releaseBin = Join-Path $ScriptDir "src\ImmersiveAI.Module\bin\Release"
 
-# 複製所有 Release DLL 與 PDB
-Get-ChildItem -Path $releaseBin -Filter "*.dll" | ForEach-Object {
-    Copy-Item $_.FullName -Destination $BinTargetDir -Force
-    Write-Host "  -> 複製 $($_.Name)" -ForegroundColor Green
-}
-Get-ChildItem -Path $releaseBin -Filter "*.pdb" | ForEach-Object {
-    Copy-Item $_.FullName -Destination $BinTargetDir -Force
+function Deploy-ToTarget($destRoot) {
+    $binDir = Join-Path $destRoot "bin\Win64_Shipping_Client"
+    if (-not (Test-Path $binDir)) { New-Item -ItemType Directory -Force -Path $binDir | Out-Null }
+
+    Get-ChildItem -Path $releaseBin -Filter "*.dll" | ForEach-Object {
+        Copy-Item $_.FullName -Destination $binDir -Force
+        Write-Host "  -> 複製 $($_.Name) 至 $binDir" -ForegroundColor Green
+    }
+    Get-ChildItem -Path $releaseBin -Filter "*.pdb" | ForEach-Object {
+        Copy-Item $_.FullName -Destination $binDir -Force
+    }
+
+    $submoduleSrc = Join-Path $ScriptDir "module\SubModule.xml"
+    if (Test-Path $submoduleSrc) {
+        Copy-Item $submoduleSrc -Destination $destRoot -Force
+        Write-Host "  -> 更新 SubModule.xml 至 $destRoot" -ForegroundColor Green
+    }
+
+    $guiSrc = Join-Path $ScriptDir "module\GUI"
+    if (Test-Path $guiSrc) {
+        Copy-Item -Path $guiSrc -Destination $destRoot -Recurse -Force
+        Write-Host "  -> 同步 GUI 介面資源 至 $destRoot" -ForegroundColor Green
+    }
 }
 
-# 複製 SubModule.xml
-$submoduleSrc = Join-Path $ScriptDir "module\SubModule.xml"
-if (Test-Path $submoduleSrc) {
-    Copy-Item $submoduleSrc -Destination $GameModuleDir -Force
-    Write-Host "  -> 更新 SubModule.xml" -ForegroundColor Green
-}
+# 部署至遊戲主目錄
+Deploy-ToTarget $GameModuleDir
 
-# 複製 GUI 資料夾 (若存在)
-$guiSrc = Join-Path $ScriptDir "module\GUI"
-$guiDest = Join-Path $GameModuleDir "GUI"
-if (Test-Path $guiSrc) {
-    Copy-Item -Path $guiSrc -Destination $GameModuleDir -Recurse -Force
-    Write-Host "  -> 同步 GUI 介面資源" -ForegroundColor Green
+# 部署至 Vortex Staging (防止 Vortex 再次部署時覆蓋成舊版)
+if ($vortexTargets.Count -gt 0) {
+    Write-Host "`n[+] 同步更新至 Vortex Staging 目錄 (防止被 Vortex 還原)..." -ForegroundColor Yellow
+    foreach ($vt in $vortexTargets) {
+        Deploy-ToTarget $vt
+    }
 }
 
 Write-Host "`n==========================================================" -ForegroundColor Green
