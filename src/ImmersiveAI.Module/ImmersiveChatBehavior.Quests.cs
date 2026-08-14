@@ -70,22 +70,37 @@ namespace ImmersiveAI
                             ok = issueToStart.StartIssueWithQuest();
                         }
 
-                        if (issueToStart.IssueQuest != null)
-                        {
-                            if (Campaign.Current?.QuestManager != null && !Campaign.Current.QuestManager.Quests.Contains(issueToStart.IssueQuest))
-                            {
-                                issueToStart.IssueQuest.StartQuest();
-                            }
-                            ok = true;
-                        }
-                        else if (Campaign.Current?.IssueManager != null && npc != null)
+                        var quest = issueToStart.IssueQuest ?? (npc != null ? QuestTool.GetActiveQuest(npc) : null);
+                        if (quest == null && Campaign.Current?.IssueManager != null && npc != null)
                         {
                             ok = Campaign.Current.IssueManager.StartIssueQuest(npc);
-                            var questFromIssue = QuestTool.GetActiveQuest(npc);
-                            if (questFromIssue != null && Campaign.Current?.QuestManager != null && !Campaign.Current.QuestManager.Quests.Contains(questFromIssue))
+                            quest = QuestTool.GetActiveQuest(npc);
+                        }
+
+                        if (quest != null)
+                        {
+                            if (Campaign.Current?.QuestManager != null && !Campaign.Current.QuestManager.Quests.Contains(quest))
                             {
-                                questFromIssue.StartQuest();
+                                quest.StartQuest();
                             }
+
+                            try
+                            {
+                                var setDialogsMethod = typeof(QuestBase).GetMethod("SetDialogs", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
+                                setDialogsMethod?.Invoke(quest, null);
+                            }
+                            catch { }
+
+                            if (quest.JournalEntries == null || quest.JournalEntries.Count == 0)
+                            {
+                                var desc = issueToStart.Description ?? issueToStart.IssueQuestSolutionExplanationByIssueGiver ?? issueToStart.Title;
+                                if (desc != null)
+                                {
+                                    quest.AddLog(desc);
+                                }
+                            }
+
+                            ok = true;
                         }
 
                         if (ok)
