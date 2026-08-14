@@ -775,6 +775,16 @@ namespace ImmersiveAI.Personas
                 head = $"{them} stands before me" + (age != null ? $", {age}" : string.Empty);
             sentences.Add(head.TrimEnd() + ".");
 
+            if (partner == Hero.MainHero)
+            {
+                Try(() =>
+                {
+                    string desc = PromptFiles.LoadPlayerDescription();
+                    if (!string.IsNullOrWhiteSpace(desc))
+                        sentences.Add("What my eyes see of their appearance and bearing: " + desc.Trim());
+                });
+            }
+
             var house = HouseLine(partner, clan, kingdom);
             if (house != null) sentences.Add(house);
             else if (kingdom != null) sentences.Add($"They are sworn to {kingdom}.");
