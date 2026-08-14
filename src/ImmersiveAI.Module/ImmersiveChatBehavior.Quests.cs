@@ -62,11 +62,7 @@ namespace ImmersiveAI
                     try
                     {
                         var title = issueToStart.Title?.ToString() ?? "Quest";
-                        if (!issueToStart.IsInitialized)
-                        {
-                            ModLog.Warn($"[QuestBridge] Cannot start quest '{title}' for {npc?.Name} because issue is not initialized.");
-                            return;
-                        }
+                        ModLog.Info($"[QuestBridge] Starting quest '{title}' for {npc?.Name} via IssueManager...");
 
                         bool ok = false;
                         if (Campaign.Current?.IssueManager != null && npc != null)
@@ -94,11 +90,15 @@ namespace ImmersiveAI
                         else
                         {
                             ModLog.Warn($"[QuestBridge] Failed to start quest '{title}' for {npc?.Name} (StartIssueQuest returned false)");
+                            InformationManager.DisplayMessage(
+                                new InformationMessage($"Could not start quest: {title}", new Color(0.9f, 0.4f, 0.4f, 1f)));
                         }
                     }
                     catch (Exception ex)
                     {
                         ModLog.Error("starting quest via dialogue", ex);
+                        InformationManager.DisplayMessage(
+                            new InformationMessage($"Quest Error: {ex.Message}", new Color(0.9f, 0.3f, 0.3f, 1f)));
                     }
                 });
             }
@@ -119,10 +119,16 @@ namespace ImmersiveAI
                             InformationManager.DisplayMessage(
                                 new InformationMessage($"Quest Completed: {title}", new Color(0.95f, 0.85f, 0.35f, 1f)));
                         }
+                        else
+                        {
+                            ModLog.Warn($"[QuestBridge] Cannot complete quest for {npc?.Name}: quest is null or already finalized.");
+                        }
                     }
                     catch (Exception ex)
                     {
                         ModLog.Error("completing quest via dialogue", ex);
+                        InformationManager.DisplayMessage(
+                            new InformationMessage($"Quest Error: {ex.Message}", new Color(0.9f, 0.3f, 0.3f, 1f)));
                     }
                 });
             }
