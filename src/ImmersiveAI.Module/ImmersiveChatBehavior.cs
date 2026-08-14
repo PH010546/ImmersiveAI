@@ -848,10 +848,10 @@ namespace ImmersiveAI
             CampaignEvents.OnPlayerBattleEndEvent.AddNonSerializedListener(this, OnPlayerBattleEnded);
             CampaignEvents.MapEventEnded.AddNonSerializedListener(this, OnMapEventEndedForChronicle);
 
-            // Party journey and travel tracking (spatial vector displacement, direction & milestones)
-            CampaignEvents.SettlementEntered.AddNonSerializedListener(this, Personas.PartyJourneyTracker.OnSettlementEntered);
-            CampaignEvents.MapEventEnded.AddNonSerializedListener(this, Personas.PartyJourneyTracker.OnMapEventEnded);
-            CampaignEvents.OnSiegeEventEnded.AddNonSerializedListener(this, Personas.PartyJourneyTracker.OnSiegeEventEnded);
+            // Travel orientation and spatial displacement tracking (vector displacement, compass direction & milestones)
+            CampaignEvents.SettlementEntered.AddNonSerializedListener(this, Personas.TravelOrientationTracker.OnSettlementEntered);
+            CampaignEvents.MapEventEnded.AddNonSerializedListener(this, Personas.TravelOrientationTracker.OnMapEventEnded);
+            CampaignEvents.OnSiegeEventEndedEvent.AddNonSerializedListener(this, Personas.TravelOrientationTracker.OnSiegeEventEnded);
 
             // The wedding chronicle (see the Weddings partial). BeforeHeroesMarried fires from
             // inside MarriageAction with the spouses already set but BEFORE the clan change that

@@ -239,13 +239,13 @@ namespace ImmersiveAI.Personas
                 sb.AppendLine(journey);
             }
 
-            // Spatial vector journey & directional travel tracking since last spoken
+            // Spatial vector displacement & geographical compass orientation since last spoken
             try
             {
                 var mem = ImmersiveChatBehavior.PeekMemoryFor(speaker);
                 if (mem != null)
                 {
-                    string travelSince = PartyJourneyTracker.DescribeJourneySince(speaker, mem, SettlementOf(speaker));
+                    string travelSince = TravelOrientationTracker.DescribeDisplacementSince(speaker, mem, SettlementOf(speaker));
                     if (!string.IsNullOrWhiteSpace(travelSince))
                     {
                         sb.AppendLine();
@@ -253,7 +253,7 @@ namespace ImmersiveAI.Personas
                     }
                 }
             }
-            catch { /* best-effort journey tracking */ }
+            catch { /* best-effort travel orientation tracking */ }
 
             // The nights lately, for a wife of the player's: the ones he came to her, the ones her
             // own door was closed, and whatever she came to learn of the rest. Nothing here tells

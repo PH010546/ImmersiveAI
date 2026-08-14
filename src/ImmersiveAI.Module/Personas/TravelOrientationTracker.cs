@@ -8,36 +8,36 @@ using TaleWorlds.CampaignSystem.MapEvents;
 using TaleWorlds.CampaignSystem.Party;
 using TaleWorlds.CampaignSystem.Settlements;
 using TaleWorlds.CampaignSystem.Siege;
-using TaleWorlds.Library;
+using TaleWorlds.Core;
 
 namespace ImmersiveAI.Personas
 {
     /// <summary>
     /// Tracks the player's party movements, battles, and travels on the Calradia map.
-    /// Computes spatial vector displacement (distance & cardinal direction), elapsed time,
-    /// and intermediate milestones between conversations so NPCs understand the passage of time and journey.
+    /// Computes spatial vector displacement (distance & cardinal compass direction), elapsed time,
+    /// and intermediate milestones between conversations so NPCs understand the passage of time and geographical orientation.
     /// </summary>
-    public static class PartyJourneyTracker
+    public static class TravelOrientationTracker
     {
-        public enum JourneyEventType
+        public enum TravelEventType
         {
             SettlementVisited,
             BattleFought,
             SiegeFought
         }
 
-        public sealed class JourneyEvent
+        public sealed class TravelEvent
         {
             public double GameDay { get; set; }
-            public JourneyEventType Type { get; set; }
+            public TravelEventType Type { get; set; }
             public string Name { get; set; } = string.Empty;
             public string Details { get; set; } = string.Empty;
-            public Vec2 Position { get; set; }
+            public CampaignVec2 Position { get; set; }
         }
 
         private static readonly object _lock = new object();
         private const int MaxEvents = 30;
-        private static readonly List<JourneyEvent> _events = new List<JourneyEvent>();
+        private static readonly List<TravelEvent> _events = new List<TravelEvent>();
 
         public static void Clear()
         {
@@ -53,17 +53,17 @@ namespace ImmersiveAI.Personas
                 lock (_lock)
                 {
                     double now = CampaignTime.Now.ToDays;
-                    var last = _events.LastOrDefault(e => e.Type == JourneyEventType.SettlementVisited);
+                    var last = _events.LastOrDefault(e => e.Type == TravelEventType.SettlementVisited);
                     if (last != null && last.Name == settlement.Name?.ToString() && (now - last.GameDay) < 0.25)
                         return; // avoid rapid re-entry spam
 
-                    _events.Add(new JourneyEvent
+                    _events.Add(new TravelEvent
                     {
                         GameDay = now,
-                        Type = JourneyEventType.SettlementVisited,
+                        Type = TravelEventType.SettlementVisited,
                         Name = settlement.Name?.ToString() ?? settlement.StringId,
                         Details = settlement.Culture?.Name?.ToString() ?? string.Empty,
-                        Position = settlement.Position2D
+                        Position = settlement.Position
                     });
 
                     if (_events.Count > MaxEvents)
@@ -89,10 +89,10 @@ namespace ImmersiveAI.Personas
 
                     string result = playerWon ? $"defeated {enemyName}" : $"fought a hard battle against {enemyName}";
 
-                    _events.Add(new JourneyEvent
+                    _events.Add(new TravelEvent
                     {
                         GameDay = now,
-                        Type = JourneyEventType.BattleFought,
+                        Type = TravelEventType.BattleFought,
                         Name = enemyName,
                         Details = result,
                         Position = mapEvent.Position
@@ -124,13 +124,13 @@ namespace ImmersiveAI.Personas
                 {
                     double now = CampaignTime.Now.ToDays;
                     string target = siegeEvent.BesiegedSettlement.Name?.ToString() ?? "a stronghold";
-                    _events.Add(new JourneyEvent
+                    _events.Add(new TravelEvent
                     {
                         GameDay = now,
-                        Type = JourneyEventType.SiegeFought,
+                        Type = TravelEventType.SiegeFought,
                         Name = target,
                         Details = $"participated in the siege of {target}",
-                        Position = siegeEvent.BesiegedSettlement.Position2D
+                        Position = siegeEvent.BesiegedSettlement.Position
                     });
 
                     if (_events.Count > MaxEvents)
@@ -141,14 +141,13 @@ namespace ImmersiveAI.Personas
         }
 
         /// <summary>
-        /// Computes the cardinal direction (North, South, North-East, etc.) from origin to target.
+        /// Computes the cardinal compass direction (North, South, North-East, etc.) from origin to target.
         /// In Bannerlord map coordinates: +Y is North, -Y is South, +X is East, -X is West.
         /// </summary>
-        public static string GetCardinalDirection(Vec2 from, Vec2 to)
+        public static string GetCardinalDirection(CampaignVec2 from, CampaignVec2 to)
         {
-            Vec2 delta = to - from;
-            float dx = delta.X;
-            float dy = delta.Y;
+            float dx = to.X - from.X;
+            float dy = to.Y - from.Y;
 
             if (Math.Abs(dx) < 5f && Math.Abs(dy) < 5f)
                 return "nearby";
@@ -170,17 +169,16 @@ namespace ImmersiveAI.Personas
         /// <summary>
         /// Estimates travel distance in leagues/miles from 2D coordinates.
         /// </summary>
-        public static int EstimateMiles(Vec2 from, Vec2 to)
+        public static int EstimateMiles(CampaignVec2 from, CampaignVec2 to)
         {
-            float len = (to - from).Length;
-            // 1 map coordinate unit is roughly ~3.5-4 in-game miles in Calradia scale
+            float len = from.Distance(to);
             return Math.Max(5, (int)(len * 3.8f));
         }
 
         /// <summary>
-        /// Builds a rich, natural narrative of the journey and elapsed time since the last conversation turn.
+        /// Builds a rich, natural narrative of the spatial vector displacement and elapsed time since the last conversation turn.
         /// </summary>
-        public static string DescribeJourneySince(Hero speaker, NpcMemory memory, Settlement? currentSettlement)
+        public static string DescribeDisplacementSince(Hero speaker, NpcMemory memory, Settlement? currentSettlement)
         {
             if (speaker == null || memory == null) return string.Empty;
 
@@ -208,17 +206,16 @@ namespace ImmersiveAI.Personas
             string currentPlace = currentSettlement?.Name?.ToString() ?? (MobileParty.MainParty != null ? "the road" : "here");
 
             // Look up origin and destination coordinates
-            Vec2? fromPos = FindSettlementPosition(lastPlace);
-            Vec2 toPos = currentSettlement != null ? currentSettlement.Position2D
-                : (MobileParty.MainParty?.Position2D ?? Vec2.Zero);
+            CampaignVec2? fromPos = FindSettlementPosition(lastPlace);
+            CampaignVec2? toPos = currentSettlement?.Position ?? MobileParty.MainParty?.Position;
 
             int days = Math.Max(1, (int)Math.Round(elapsedDays));
             string timeStr = days == 1 ? "1 day" : $"{days} days";
 
-            if (fromPos.HasValue && toPos != Vec2.Zero && fromPos.Value != toPos)
+            if (fromPos.HasValue && toPos.HasValue)
             {
-                string dir = GetCardinalDirection(fromPos.Value, toPos);
-                int miles = EstimateMiles(fromPos.Value, toPos);
+                string dir = GetCardinalDirection(fromPos.Value, toPos.Value);
+                int miles = EstimateMiles(fromPos.Value, toPos.Value);
 
                 if (dir != "nearby" && miles > 25)
                 {
@@ -242,7 +239,7 @@ namespace ImmersiveAI.Personas
                     .ToList();
 
                 var passedCities = intermediate
-                    .Where(e => e.Type == JourneyEventType.SettlementVisited && e.Name != lastPlace && e.Name != currentPlace)
+                    .Where(e => e.Type == TravelEventType.SettlementVisited && e.Name != lastPlace && e.Name != currentPlace)
                     .Select(e => e.Name)
                     .Distinct()
                     .Take(4)
@@ -254,7 +251,7 @@ namespace ImmersiveAI.Personas
                 }
 
                 var battles = intermediate
-                    .Where(e => e.Type == JourneyEventType.BattleFought)
+                    .Where(e => e.Type == TravelEventType.BattleFought)
                     .Select(e => e.Details)
                     .Take(2)
                     .ToList();
@@ -273,7 +270,7 @@ namespace ImmersiveAI.Personas
             lock (_lock)
             {
                 return _events
-                    .Where(e => e.Type == JourneyEventType.SettlementVisited && e.GameDay >= startDay && e.GameDay <= endDay)
+                    .Where(e => e.Type == TravelEventType.SettlementVisited && e.GameDay >= startDay && e.GameDay <= endDay)
                     .Select(e => e.Name)
                     .Distinct()
                     .Take(3)
@@ -281,7 +278,7 @@ namespace ImmersiveAI.Personas
             }
         }
 
-        private static Vec2? FindSettlementPosition(string name)
+        private static CampaignVec2? FindSettlementPosition(string name)
         {
             if (string.IsNullOrWhiteSpace(name)) return null;
             try
@@ -289,7 +286,7 @@ namespace ImmersiveAI.Personas
                 var s = Settlement.All?.FirstOrDefault(x =>
                     string.Equals(x.Name?.ToString(), name, StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(x.StringId, name, StringComparison.OrdinalIgnoreCase));
-                return s?.Position2D;
+                return s?.Position;
             }
             catch { return null; }
         }
