@@ -173,8 +173,7 @@ namespace ImmersiveAI
         // tools, resolved from live campaign data on the game thread) and, when granted, the
         // counsel of the far-seeing sages (a web search, resolved off-thread). Every spoken path
         // goes through here; short utility calls (the feeling number, the yes/no of a reaching-out)
-        // stay on plain CompleteAsync, where a recall would only slow the answer down.
-        private Task<string> CompleteSpokenAsync(IReadOnlyList<ChatMessage> messages, Hero npc, Tools.HeartTool.Tally? heart = null, NpcMemory? liveMemory = null, Tools.BargainTool.Tally? bargain = null, Tools.TrothTool.Tally? troth = null, Tools.TrothTool.BlessTally? bless = null)
+        private Task<string> CompleteSpokenAsync(IReadOnlyList<ChatMessage> messages, Hero npc, Tools.HeartTool.Tally? heart = null, NpcMemory? liveMemory = null, Tools.BargainTool.Tally? bargain = null, Tools.TrothTool.Tally? troth = null, Tools.TrothTool.BlessTally? bless = null, Tools.QuestTool.Tally? quest = null)
         {
             var tools = new List<ToolDefinition>();
             if (CanRecallWorld()) tools.AddRange(Tools.WorldRecall.Tools);
@@ -200,6 +199,14 @@ namespace ImmersiveAI
             // marriage, tended by her alone (the retired matchmaker's checkable asks, unrobotted).
             if (troth != null) { tools.Add(Tools.TrothTool.Tend); tools.Add(Tools.MisgivingTool.Tool); }
             if (bless != null) tools.Add(Tools.TrothTool.Bless);
+
+            // Native Quest / Issue dialogue bridge
+            if (quest != null)
+            {
+                if (Tools.QuestTool.GetAvailableIssue(npc) != null) tools.Add(Tools.QuestTool.AcceptTool);
+                if (Tools.QuestTool.GetActiveQuest(npc) != null) tools.Add(Tools.QuestTool.ReportTool);
+            }
+
             if (tools.Count == 0)
                 return _client.CompleteAsync(messages);
 
@@ -207,12 +214,12 @@ namespace ImmersiveAI
             // question ("how might I grant my ships…") becomes a query that truly finds answers.
             var recentContext = LastIncomingWords(messages);
 
-            // The heart's hand and the personal hands (the bargain, the troth) are not recalls:
+            // The heart's hand and the personal hands (the bargain, the troth, the quest) are not recalls:
             // they keep at least one round even when the recall budget is zeroed out.
-            int rounds = (heartRides || bargain != null || troth != null || bless != null) ? Math.Max(1, _config.MaxRecallsPerReply) : _config.MaxRecallsPerReply;
+            int rounds = (heartRides || bargain != null || troth != null || bless != null || quest != null) ? Math.Max(1, _config.MaxRecallsPerReply) : _config.MaxRecallsPerReply;
             return ToolLoopRunner.RunAsync(
                 _client, messages, tools,
-                call => ResolveToolAsync(call, npc, heart, liveMemory, recentContext, bargain, troth, bless),
+                call => ResolveToolAsync(call, npc, heart, liveMemory, recentContext, bargain, troth, bless, quest),
                 rounds);
         }
 
@@ -236,7 +243,7 @@ namespace ImmersiveAI
         // Routes one tool call to its resolver, announcing the activity to the player first so the
         // wait is never silent ("remembering…", "researching…"). The heart's shift gets no notice
         // of its own — the colored relation line that follows IS the notice.
-        private Task<string> ResolveToolAsync(Core.Llm.ToolCall call, Hero npc, Tools.HeartTool.Tally? heart, NpcMemory? liveMemory, string recentContext, Tools.BargainTool.Tally? bargain = null, Tools.TrothTool.Tally? troth = null, Tools.TrothTool.BlessTally? bless = null)
+        private Task<string> ResolveToolAsync(Core.Llm.ToolCall call, Hero npc, Tools.HeartTool.Tally? heart, NpcMemory? liveMemory, string recentContext, Tools.BargainTool.Tally? bargain = null, Tools.TrothTool.Tally? troth = null, Tools.TrothTool.BlessTally? bless = null, Tools.QuestTool.Tally? quest = null)
         {
             if (call.Name == Tools.HeartTool.MoveHeart)
                 return Task.FromResult(ResolveHeartShift(call, npc, heart));
@@ -253,6 +260,12 @@ namespace ImmersiveAI
             if (call.Name == Tools.TrothTool.BlessMarriage)
                 return Task.FromResult(ResolveBlessLay(call, npc, bless));
 
+            if (call.Name == Tools.QuestTool.AcceptQuest)
+                return Task.FromResult(ResolveAcceptQuest(call, npc, quest));
+
+            if (call.Name == Tools.QuestTool.ReportQuest)
+                return Task.FromResult(ResolveReportQuest(call, npc, quest));
+
             NotifyActivity(npc, call);
             if (call.Name == Tools.WebWisdom.SeekWisdom)
                 return Tools.WebWisdom.ResolveAsync(call, (question, beyond) => RefineSearchQueryAsync(question, beyond, recentContext));
@@ -265,6 +278,28 @@ namespace ImmersiveAI
             if (call.Name == Tools.CradleTool.RecallBirth)
                 return Tools.CradleTool.ResolveAsync(call, npc, () => _birthLedger);
             return Tools.WorldRecall.ResolveAsync(call, npc);
+        }
+
+        private string ResolveAcceptQuest(Core.Llm.ToolCall call, Hero npc, Tools.QuestTool.Tally? quest)
+        {
+            var issue = Tools.QuestTool.GetAvailableIssue(npc);
+            if (issue != null && quest != null)
+            {
+                quest.AcceptedIssue = issue;
+                return "The agreement is struck. The task is officially given into their hands. I speak on in my own words, thanking them or giving parting advice.";
+            }
+            return "No troubled matter is presently available to give.";
+        }
+
+        private string ResolveReportQuest(Core.Llm.ToolCall call, Hero npc, Tools.QuestTool.Tally? quest)
+        {
+            var activeQuest = Tools.QuestTool.GetActiveQuest(npc);
+            if (activeQuest != null && quest != null)
+            {
+                quest.ReportedQuest = activeQuest;
+                return "I acknowledge the completion of the deed with gratitude. I speak on in my own words, offering our thanks and rewards.";
+            }
+            return "No ongoing task was found.";
         }
 
         // One search query sharpened before it goes to the web: the NPC asks in her own immersed
@@ -1654,6 +1689,10 @@ namespace ImmersiveAI
             var troth = bless == null && CanTendTroth(npc) ? new Tools.TrothTool.Tally() : null;
             if (troth != null) await EnsureCourtshipReadyAsync(npc).ConfigureAwait(false);
 
+            // Native Quest / Issue dialogue bridge tally
+            var quest = (Tools.QuestTool.GetAvailableIssue(npc) != null || Tools.QuestTool.GetActiveQuest(npc) != null)
+                ? new Tools.QuestTool.Tally() : null;
+
             var ctx = BuildContext(npc, situationOverride, bargainRides: bargain != null,
                 trothRides: troth != null, blessBride: bless?.Bride);
             var memory = ctx.Memory;
@@ -1666,8 +1705,45 @@ namespace ImmersiveAI
             // The live memory rides along so a mid-reply hand upon it (a misgiving set down, a
             // courtship step) lands in the same instance this turn will record into and save —
             // the end-of-exchange save can never clobber it.
-            var rawReply = await CompleteSpokenAsync(messages, npc, heart, memory, bargain, troth, bless).ConfigureAwait(false);
+            var rawReply = await CompleteSpokenAsync(messages, npc, heart, memory, bargain, troth, bless, quest).ConfigureAwait(false);
             var reply = string.IsNullOrWhiteSpace(rawReply) ? "..." : rawReply.Trim();
+
+            if (quest?.AcceptedIssue != null)
+            {
+                var issueToStart = quest.AcceptedIssue;
+                MainThreadDispatcher.Enqueue(() =>
+                {
+                    try
+                    {
+                        if (issueToStart != null && issueToStart.IsInitialized)
+                        {
+                            bool ok = issueToStart.StartIssueWithQuest();
+                            var title = issueToStart.Title?.ToString() ?? "Quest";
+                            if (ok)
+                                InformationManager.DisplayMessage(new InformationMessage($"Quest Started: {title}", new Color(0.4f, 0.9f, 0.4f, 1f)));
+                        }
+                    }
+                    catch (Exception ex) { ModLog.Error("starting quest via dialogue", ex); }
+                });
+            }
+
+            if (quest?.ReportedQuest != null)
+            {
+                var questToReport = quest.ReportedQuest;
+                MainThreadDispatcher.Enqueue(() =>
+                {
+                    try
+                    {
+                        if (questToReport != null && !questToReport.IsFinalized)
+                        {
+                            questToReport.CompleteQuestWithSuccess();
+                            var title = questToReport.Title?.ToString() ?? "Quest";
+                            InformationManager.DisplayMessage(new InformationMessage($"Quest Completed: {title}", new Color(0.95f, 0.85f, 0.35f, 1f)));
+                        }
+                    }
+                    catch (Exception ex) { ModLog.Error("completing quest via dialogue", ex); }
+                });
+            }
 
             // How the exchange moved her heart. In the tool shape she moves it herself mid-reply
             // (move_heart, already applied) — but only a call that actually CAME counts as weighed:

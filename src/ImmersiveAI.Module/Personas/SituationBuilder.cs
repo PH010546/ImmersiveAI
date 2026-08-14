@@ -645,6 +645,27 @@ namespace ImmersiveAI.Personas
                     sentences.Add("My company has its hands in a raid even now.");
             });
 
+            // Native Issue (Quest available) or Active Quest
+            Try(() =>
+            {
+                var issue = Tools.QuestTool.GetAvailableIssue(h);
+                if (issue != null)
+                {
+                    string title = issue.Title?.ToString() ?? "A troubled matter";
+                    string desc = issue.Description?.ToString() ?? string.Empty;
+                    sentences.Add($"A trouble weighing upon my household (Issue / Quest Available): \"{title}\" — {desc}. If the traveler offers to take this upon themselves, explain what must be done and call accept_quest.");
+                }
+                else
+                {
+                    var activeQuest = Tools.QuestTool.GetActiveQuest(h);
+                    if (activeQuest != null)
+                    {
+                        string qTitle = activeQuest.Title?.ToString() ?? "A task";
+                        sentences.Add($"A task the traveler presently rides upon for me (Active Quest): \"{qTitle}\". If they have fulfilled the deed, acknowledge it with gratitude and call report_quest.");
+                    }
+                }
+            });
+
             return string.Join(" ", sentences);
         }
 
