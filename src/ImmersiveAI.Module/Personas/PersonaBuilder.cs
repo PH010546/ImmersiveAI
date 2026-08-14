@@ -48,7 +48,28 @@ namespace ImmersiveAI.Personas
             var id = npc.StringId ?? npc.Name?.ToString() ?? "";
             int hash = 17;
             foreach (var c in id) hash = unchecked(hash * 31 + c);
-            return SpeechStyles[Math.Abs(hash) % SpeechStyles.Length];
+            int idx = Math.Abs(hash) % SpeechStyles.Length;
+
+            // Index 8: "Old and weary" -> Age-adaptive styling
+            if (idx == 8)
+            {
+                if (npc.Age < 35f)
+                    return "World-weary beyond their years; speaks with a grim, precocious calm and dry realism, carrying the weight of early hardship (speaks as a hardened youth, never claiming physical old age).";
+                if (npc.Age < 50f)
+                    return "Weathered and experienced; speaks with a steady, pragmatic calm, referencing hard lessons learned over the years.";
+                return "Old and weathered; speaks with the patient cadence of long years, referencing the past and offering measured advice.";
+            }
+
+            // Index 3: "Rough soldier's speech" -> Non-combatant/Lady adaptation
+            if (idx == 3)
+            {
+                bool isFighter = npc.IsWanderer || npc.IsLord || npc.Occupation == Occupation.Mercenary
+                    || npc.Occupation == Occupation.GangLeader || npc.PartyBelongedTo != null;
+                if (!isFighter)
+                    return "Direct and unvarnished speech; candid metaphors, dry humor, without courtly pretensions.";
+            }
+
+            return SpeechStyles[idx];
         }
 
         private static string BuildRole(Hero npc, ModConfig config = null)
