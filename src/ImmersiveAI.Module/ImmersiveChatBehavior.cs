@@ -261,10 +261,16 @@ namespace ImmersiveAI
                 return Task.FromResult(ResolveBlessLay(call, npc, bless));
 
             if (call.Name == Tools.QuestTool.AcceptQuest)
+            {
+                NotifyActivity(npc, call);
                 return Task.FromResult(ResolveAcceptQuest(call, npc, quest));
+            }
 
             if (call.Name == Tools.QuestTool.ReportQuest)
+            {
+                NotifyActivity(npc, call);
                 return Task.FromResult(ResolveReportQuest(call, npc, quest));
+            }
 
             NotifyActivity(npc, call);
             if (call.Name == Tools.WebWisdom.SeekWisdom)
@@ -684,6 +690,8 @@ namespace ImmersiveAI
                     case Tools.ChronicleTool.RecallBattle: doing = $"{name} turns the chronicle's pages…{detail}"; break;
                     case Tools.NuptialTool.RecallWedding: doing = $"{name} remembers the wedding day…{detail}"; break;
                     case Tools.CradleTool.RecallBirth: doing = $"{name} remembers the child's coming…{detail}"; break;
+                    case Tools.QuestTool.AcceptQuest: doing = $"{name} formally hands over the task…"; break;
+                    case Tools.QuestTool.ReportQuest: doing = $"{name} receives the completed task…"; break;
                     case Tools.WorldRecall.RecallPerson:
                     case Tools.WorldRecall.RecallPlace:
                     case Tools.WorldRecall.RecallClan:

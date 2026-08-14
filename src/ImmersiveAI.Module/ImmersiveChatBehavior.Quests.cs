@@ -2,6 +2,7 @@ using System;
 using ImmersiveAI.Core;
 using ImmersiveAI.Tools;
 using TaleWorlds.CampaignSystem;
+using TaleWorlds.CampaignSystem.Issues;
 using TaleWorlds.Core;
 using TaleWorlds.Library;
 
@@ -19,22 +20,32 @@ namespace ImmersiveAI
         private string ResolveAcceptQuest(Core.Llm.ToolCall call, Hero npc, QuestTool.Tally? quest)
         {
             var issue = QuestTool.GetAvailableIssue(npc);
+            var issueTitle = issue?.Title?.ToString() ?? "Unknown";
+            ModLog.Info($"[QuestBridge] LLM called accept_quest for {npc?.Name} (Available issue: '{issueTitle}')");
+
             if (issue != null && quest != null)
             {
+                quest.Npc = npc;
                 quest.AcceptedIssue = issue;
                 return "The agreement is struck. The task is officially given into their hands. I speak on in my own words, thanking them or giving parting advice.";
             }
+            ModLog.Warn($"[QuestBridge] accept_quest called for {npc?.Name}, but no available issue was found.");
             return "No troubled matter is presently available to give.";
         }
 
         private string ResolveReportQuest(Core.Llm.ToolCall call, Hero npc, QuestTool.Tally? quest)
         {
             var activeQuest = QuestTool.GetActiveQuest(npc);
+            var questTitle = activeQuest?.Title?.ToString() ?? "Unknown";
+            ModLog.Info($"[QuestBridge] LLM called report_quest for {npc?.Name} (Active quest: '{questTitle}')");
+
             if (activeQuest != null && quest != null)
             {
+                quest.Npc = npc;
                 quest.ReportedQuest = activeQuest;
                 return "I acknowledge the completion of the deed with gratitude. I speak on in my own words, offering our thanks and rewards.";
             }
+            ModLog.Warn($"[QuestBridge] report_quest called for {npc?.Name}, but no active quest was found.");
             return "No ongoing task was found.";
         }
 
@@ -45,19 +56,44 @@ namespace ImmersiveAI
             if (quest.AcceptedIssue != null)
             {
                 var issueToStart = quest.AcceptedIssue;
+                var npc = quest.Npc ?? issueToStart.IssueOwner;
                 MainThreadDispatcher.Enqueue(() =>
                 {
                     try
                     {
-                        if (issueToStart != null && issueToStart.IsInitialized)
+                        var title = issueToStart.Title?.ToString() ?? "Quest";
+                        if (!issueToStart.IsInitialized)
                         {
-                            bool ok = issueToStart.StartIssueWithQuest();
-                            var title = issueToStart.Title?.ToString() ?? "Quest";
-                            if (ok)
-                            {
-                                InformationManager.DisplayMessage(
-                                    new InformationMessage($"Quest Started: {title}", new Color(0.4f, 0.9f, 0.4f, 1f)));
-                            }
+                            ModLog.Warn($"[QuestBridge] Cannot start quest '{title}' for {npc?.Name} because issue is not initialized.");
+                            return;
+                        }
+
+                        bool ok = false;
+                        if (Campaign.Current?.IssueManager != null && npc != null)
+                        {
+                            ok = Campaign.Current.IssueManager.StartIssueQuest(npc);
+                        }
+
+                        if (!ok && issueToStart.IssueQuest == null)
+                        {
+                            ok = issueToStart.StartIssueWithQuest();
+                        }
+
+                        if (issueToStart.IssueQuest != null && !issueToStart.IssueQuest.IsOngoing)
+                        {
+                            issueToStart.IssueQuest.StartQuest();
+                            ok = true;
+                        }
+
+                        if (ok)
+                        {
+                            ModLog.Info($"[QuestBridge] Successfully started quest: '{title}' for {npc?.Name}");
+                            InformationManager.DisplayMessage(
+                                new InformationMessage($"Quest Started: {title}", new Color(0.4f, 0.9f, 0.4f, 1f)));
+                        }
+                        else
+                        {
+                            ModLog.Warn($"[QuestBridge] Failed to start quest '{title}' for {npc?.Name} (StartIssueQuest returned false)");
                         }
                     }
                     catch (Exception ex)
@@ -70,14 +106,16 @@ namespace ImmersiveAI
             if (quest.ReportedQuest != null)
             {
                 var questToReport = quest.ReportedQuest;
+                var npc = quest.Npc ?? questToReport.QuestGiver;
                 MainThreadDispatcher.Enqueue(() =>
                 {
                     try
                     {
                         if (questToReport != null && !questToReport.IsFinalized)
                         {
-                            questToReport.CompleteQuestWithSuccess();
                             var title = questToReport.Title?.ToString() ?? "Quest";
+                            ModLog.Info($"[QuestBridge] Completing quest with success: '{title}' for {npc?.Name}");
+                            questToReport.CompleteQuestWithSuccess();
                             InformationManager.DisplayMessage(
                                 new InformationMessage($"Quest Completed: {title}", new Color(0.95f, 0.85f, 0.35f, 1f)));
                         }

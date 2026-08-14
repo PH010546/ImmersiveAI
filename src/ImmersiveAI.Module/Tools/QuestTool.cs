@@ -19,13 +19,14 @@ namespace ImmersiveAI.Tools
 
         public sealed class Tally
         {
+            public Hero? Npc;
             public IssueBase? AcceptedIssue;
             public QuestBase? ReportedQuest;
         }
 
         public static readonly ToolDefinition AcceptTool = new ToolDefinition(AcceptQuest,
-            "Formally hand over the spoken issue or task to the traveler who has agreed in words to take it upon themselves. " +
-            "Call this tool to seal the task into the campaign record and begin their quest in the game engine.",
+            "Formally hand over my spoken issue or task to the traveler who has agreed in words to take it upon themselves. " +
+            "You MUST call this tool whenever the traveler offers or agrees to help or take the task, to seal the quest into the game engine.",
             new[]
             {
                 new ToolParameter("confirmation", "A brief phrase confirming the task agreed upon.", required: false)
@@ -33,7 +34,7 @@ namespace ImmersiveAI.Tools
 
         public static readonly ToolDefinition ReportTool = new ToolDefinition(ReportQuest,
             "Acknowledge the completion of the ongoing quest that the traveler rode upon for me, " +
-            "granting them our gratitude and rewards.",
+            "granting them our gratitude and rewards in the game engine.",
             new[]
             {
                 new ToolParameter("result", "Confirmation of the quest result.", required: false)

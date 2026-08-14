@@ -97,7 +97,7 @@ namespace ImmersiveAI.Personas
                 sentences.Add("No one has yet taken this burden from me.");
                 if (!string.IsNullOrWhiteSpace(ask))
                     sentences.Add($"Were one willing and able to see it done, this is what I would ask of them: “{ask}”");
-                sentences.Add("If the traveler agrees in their words to take this burden upon themselves, I gladly accept their aid and call accept_quest.");
+                sentences.Add("If the traveler agrees in their words to take this burden upon themselves (or says they accept/will help), I gladly accept their aid and I MUST call accept_quest in that very breath to hand the task over.");
             }
         }
 
