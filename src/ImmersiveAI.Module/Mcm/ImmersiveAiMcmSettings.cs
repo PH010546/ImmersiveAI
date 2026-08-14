@@ -341,23 +341,45 @@ namespace ImmersiveAI.Mcm
         [SettingPropertyGroup("Memory", GroupOrder = 3)]
         public bool NotifyOnMemoryRefactor { get; set; } = true;
 
+        // ── Relationships & Defense ────────────────────────────────────────────────
+
+        [SettingPropertyBool("Daily dialogue relation cap", Order = 0, RequireRestart = false,
+            HintText = "Enforces a daily cap on relation gained from casual conversation alone, following a natural S-curve to prevent farming. True bonds are forged in shared blood and deeds.")]
+        [SettingPropertyGroup("Relationships & Defense", GroupOrder = 4)]
+        public bool EnableDailyRelationCap { get; set; } = true;
+
+        [SettingPropertyInteger("Max daily dialogue points", 1, 10, "0 points", Order = 1, RequireRestart = false,
+            HintText = "The maximum relation points an NPC can gain from routine dialogue in a single game day. Default is 3 points.")]
+        [SettingPropertyGroup("Relationships & Defense", GroupOrder = 4)]
+        public int DailyDialogueRelationCap { get; set; } = 3;
+
+        [SettingPropertyFloatingInteger("Epic battle odds ratio", 1.5f, 5.0f, "0.0x", Order = 2, RequireRestart = false,
+            HintText = "The enemy outnumber ratio (e.g. 2.0x) required to qualify as an epic desperate battle that breaks through the daily casual cap.")]
+        [SettingPropertyGroup("Relationships & Defense", GroupOrder = 4)]
+        public float EpicBattleOddsRatio { get; set; } = 2.0f;
+
+        [SettingPropertyBool("Hostility & Skepticism defense", Order = 3, RequireRestart = false,
+            HintText = "Gives enemy lords and hostile NPCs a guarded pride and psychological defense, preventing sweet talk or empty flattery from easily swaying them.")]
+        [SettingPropertyGroup("Relationships & Defense", GroupOrder = 4)]
+        public bool EnableSentimentDefense { get; set; } = true;
+
         // ── Costs ───────────────────────────────────────────────────────────────────
 
         [SettingPropertyBool("Show cost notices", Order = 0, RequireRestart = false,
             HintText = "After each exchange, a soft gray line shows what it took: tokens in/out, number of calls, and the price when the model's rates are known. The same lines also go to log.txt, and daily totals persist in usage.json.")]
-        [SettingPropertyGroup("Costs", GroupOrder = 4)]
+        [SettingPropertyGroup("Costs", GroupOrder = 5)]
         public bool ShowCostNotices { get; set; } = true;
 
         [SettingPropertyInteger("Daily request cap (0 = none)", 0, 2000, "0", Order = 1, RequireRestart = false,
             HintText = "A safety valve: at most this many AI requests per real day, across all sessions. When reached, the world goes quiet until the day turns or the cap is raised. 0 means no cap.")]
-        [SettingPropertyGroup("Costs", GroupOrder = 4)]
+        [SettingPropertyGroup("Costs", GroupOrder = 5)]
         public int MaxDailyRequests { get; set; } = 0;
 
         // ── Advanced ────────────────────────────────────────────────────────────────
 
         [SettingPropertyBool("Developer mode", Order = 0, RequireRestart = false,
             HintText = "Shows the mod's test levers and the 'reveal the whole of your mind' prompt inspector. Leave OFF for normal play.")]
-        [SettingPropertyGroup("Advanced", GroupOrder = 5)]
+        [SettingPropertyGroup("Advanced", GroupOrder = 6)]
         public bool DevMode { get; set; } = false;
 
         /// <summary>A curated set of map-safe keys for the window hotkeys, with <paramref name="preferred"/>

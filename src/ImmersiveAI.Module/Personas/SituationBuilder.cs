@@ -283,6 +283,18 @@ namespace ImmersiveAI.Personas
                 sb.AppendLine(together);
             }
 
+            // Event-anchored sentiments (debts of honor and grievances)
+            try
+            {
+                string sentiments = ImmersiveChatBehavior.SentimentsBlockFor(speaker);
+                if (!string.IsNullOrWhiteSpace(sentiments))
+                {
+                    sb.AppendLine();
+                    sb.AppendLine(sentiments);
+                }
+            }
+            catch { /* best-effort sentiment injection */ }
+
             // And past the separator, the person: who stands before me (or writes from afar), named
             // with what they are to me — my husband, my daughter, my liege — and how my heart leans.
             var meeting = BuildMeeting(speaker, partner, moment);
@@ -816,10 +828,20 @@ namespace ImmersiveAI.Personas
                 var f1 = speaker.MapFaction;
                 var f2 = partner.MapFaction;
                 if (f1 == null || f2 == null) return;
-                if (f1 == f2) { sentences.Add("We stand beneath the same banner."); return; }
-                sentences.Add(AreAtWar(f1, f2)
-                    ? $"Our peoples — {f1.Name} and {f2.Name} — are at war."
-                    : $"Our peoples — {f1.Name} and {f2.Name} — are at peace.");
+                bool atWar = f1 != f2 && AreAtWar(f1, f2);
+                if (f1 == f2) { sentences.Add("We stand beneath the same banner."); }
+                else
+                {
+                    sentences.Add(atWar
+                        ? $"Our peoples — {f1.Name} and {f2.Name} — are at war."
+                        : $"Our peoples — {f1.Name} and {f2.Name} — are at peace.");
+                }
+
+                int relation = speaker.GetRelation(partner);
+                if (relation < 0 || atWar)
+                {
+                    sentences.Add("Toward enemies or those I distrust, I keep a guarded pride: sweet words and empty flattery buy no secrets, no betrayal of my realm, and no easy forgiveness. Only real deeds and lived honor move my heart.");
+                }
             });
 
             return string.Join(" ", sentences);

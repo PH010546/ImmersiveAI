@@ -342,6 +342,11 @@ namespace ImmersiveAI.Mcm
             Select(s.NightWindowHotkey, c.NightWindowHotkey);
             s.RevertMemoriesWithSaves = c.RevertMemoriesWithSaves;
 
+            s.EnableDailyRelationCap = c.EnableDailyRelationCap;
+            s.DailyDialogueRelationCap = Clamp(c.DailyDialogueRelationCap, 1, 10);
+            s.EpicBattleOddsRatio = Math.Max(1.5f, Math.Min(5.0f, c.EpicBattleOddsRatio));
+            s.EnableSentimentDefense = c.EnableSentimentDefense;
+
             PushMemoryToMenu(s, c);
 
             s.ShowCostNotices = c.ShowCostNotices;
@@ -435,6 +440,11 @@ namespace ImmersiveAI.Mcm
             c.EnableNightWindow = s.EnableNightWindow;
             c.NightWindowHotkey = SelectedOf(s.NightWindowHotkey) ?? c.NightWindowHotkey;
             c.RevertMemoriesWithSaves = s.RevertMemoriesWithSaves;
+
+            c.EnableDailyRelationCap = s.EnableDailyRelationCap;
+            c.DailyDialogueRelationCap = s.DailyDialogueRelationCap;
+            c.EpicBattleOddsRatio = s.EpicBattleOddsRatio;
+            c.EnableSentimentDefense = s.EnableSentimentDefense;
 
             // The consolidation dials: the menu's ranges are the config's own rails, so these ride
             // straight across. Normalize (run by the caller) then enforces the pairs' order — a keep
