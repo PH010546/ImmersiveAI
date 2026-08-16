@@ -19,16 +19,21 @@ namespace ImmersiveAI
 
         // Precondition flags defined by TaleWorlds.CampaignSystem.Issues.IssueBase.PreconditionFlags
         private const int PreconditionFlagNone = 0;
-        private const int PreconditionFlagNotEnoughGold = 1;
-        private const int PreconditionFlagNotEnoughHealth = 2;
-        private const int PreconditionFlagNotEnoughSkill = 4;
-        private const int PreconditionFlagNotEnoughRenown = 8;
-        private const int PreconditionFlagNotEnoughTroops = 16;
-        private const int PreconditionFlagPartySizeLimitExceeded = 32;
-        private const int PreconditionFlagClanIsAtWar = 64;
-        private const int PreconditionFlagMainHeroIsPrisoner = 128;
-        private const int PreconditionFlagHasOngoingQuest = 256;
-        private const int PreconditionFlagWounded = 512;
+        private const int PreconditionFlagRelation = 1;
+        private const int PreconditionFlagSkill = 2;
+        private const int PreconditionFlagMoney = 4;
+        private const int PreconditionFlagRenown = 8;
+        private const int PreconditionFlagInfluence = 16;
+        private const int PreconditionFlagWounded = 32;
+        private const int PreconditionFlagAtWar = 64;
+        private const int PreconditionFlagClanTier = 128;
+        private const int PreconditionFlagNotEnoughTroops = 256;
+        private const int PreconditionFlagNotInSameFaction = 512;
+        private const int PreconditionFlagPartySizeLimit = 1024;
+        private const int PreconditionFlagClanIsMercenary = 2048;
+
+        private static readonly System.Reflection.PropertyInfo? IssueQuestCanBeDuplicatedProperty =
+            typeof(IssueBase).GetProperty("IssueQuestCanBeDuplicated", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
 
         private static readonly System.Reflection.MethodInfo? CanPlayerTakeQuestConditionsMethod =
             typeof(IssueBase).GetMethod("CanPlayerTakeQuestConditions", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
@@ -43,6 +48,33 @@ namespace ImmersiveAI
             {
                 ModLog.Warn($"[QuestBridge] accept_quest called for {npc?.Name}, but no available issue was found.");
                 return "No troubled matter is presently available to give.";
+            }
+
+            // 1. Native Duplicate Quest Check (TaleWorlds native IssueQuestCanBeDuplicated mechanism)
+            try
+            {
+                bool canDuplicate = IssueQuestCanBeDuplicatedProperty != null && (bool)(IssueQuestCanBeDuplicatedProperty.GetValue(issue, null) ?? false);
+                if (!canDuplicate && Campaign.Current?.IssueManager?.Issues != null)
+                {
+                    bool hasSameTypeActive = false;
+                    foreach (var activeIssue in Campaign.Current.IssueManager.Issues.Values)
+                    {
+                        if (activeIssue != null && activeIssue.IsSolvingWithQuest && activeIssue.GetType() == issue.GetType())
+                        {
+                            hasSameTypeActive = true;
+                            break;
+                        }
+                    }
+                    if (hasSameTypeActive)
+                    {
+                        ModLog.Info($"[QuestBridge] Refusing accept_quest for {npc.Name}: Player already has an active quest of identical type ({issue.GetType().Name}).");
+                        return "I cannot entrust this task to you right now: you already have a similar commitment underway elsewhere in Calradia. Settle your current task first, then speak to me again.";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                ModLog.Warn($"[QuestBridge] Error evaluating IssueQuestCanBeDuplicated: {ex.Message}");
             }
 
             // Three-tier Precondition Check
@@ -63,38 +95,31 @@ namespace ImmersiveAI
                 ModLog.Warn($"[QuestBridge] Could not evaluate CanPlayerTakeQuestConditions reflectively: {ex.Message}");
             }
 
-            // 1. Hard Block (physical/economic impossibility)
-            if ((flagsInt & PreconditionFlagNotEnoughGold) != 0 || (reqGold > 0 && Hero.MainHero?.Gold < reqGold))
+            // 2. Hard Blocks (physical/economic impossibility)
+            if ((flagsInt & PreconditionFlagMoney) != 0 || (reqGold > 0 && Hero.MainHero?.Gold < reqGold))
             {
                 ModLog.Info($"[QuestBridge] Refusing accept_quest for {npc.Name}: Not enough gold (Requires {reqGold}, Player has {Hero.MainHero?.Gold})");
                 return $"I cannot entrust this task to you: you lack the required {reqGold} gold to cover the cost or deposit. Speak to me again when you have the funds.";
             }
-            if ((flagsInt & PreconditionFlagMainHeroIsPrisoner) != 0 || (Hero.MainHero != null && Hero.MainHero.IsPrisoner))
+            if (Hero.MainHero != null && Hero.MainHero.IsPrisoner)
             {
                 ModLog.Info($"[QuestBridge] Refusing accept_quest for {npc.Name}: Player is prisoner.");
                 return "You are currently a captive and cannot undertake tasks.";
             }
-            if ((flagsInt & PreconditionFlagClanIsAtWar) != 0)
+            if ((flagsInt & PreconditionFlagAtWar) != 0)
             {
                 ModLog.Info($"[QuestBridge] Refusing accept_quest for {npc.Name}: Faction at war.");
                 return "Our realms are at open war. I will not conspire with an enemy.";
             }
-            if ((flagsInt & PreconditionFlagPartySizeLimitExceeded) != 0)
+            if ((flagsInt & PreconditionFlagPartySizeLimit) != 0)
             {
                 ModLog.Info($"[QuestBridge] Refusing accept_quest for {npc.Name}: Party limit exceeded.");
                 return "Your party is at its absolute limit and cannot take on more men or supplies for this task.";
             }
-
-            // 2. Conflict (competing allegiance/active conflicting quest)
-            if ((flagsInt & PreconditionFlagHasOngoingQuest) != 0)
+            if ((flagsInt & PreconditionFlagRelation) != 0)
             {
-                ModLog.Info($"[QuestBridge] Refusing accept_quest for {npc.Name}: Has conflicting ongoing quest.");
-                try
-                {
-                    TaleWorlds.CampaignSystem.Actions.ChangeRelationAction.ApplyPlayerRelation(npc, -2);
-                }
-                catch { }
-                return "You are already bound by a conflicting task or working for my rivals. I cannot trust you with this business.";
+                ModLog.Info($"[QuestBridge] Refusing accept_quest for {npc.Name}: Relation too low.");
+                return "You and I do not have a good history. I do not trust you with this business.";
             }
 
             // 3. Physical Distance Boundary (Remote Letter / Distant Chat requiring physical goods or upfront coin)
@@ -105,14 +130,16 @@ namespace ImmersiveAI
                 return "This matter involves large sums of coin and heavy goods that cannot be entrusted to a courier. Please come speak with me in person at my settlement so we may settle terms face to face.";
             }
 
-            // 4. Soft Conditions (Alone / Injured / Low Renown / Low Skill) -> Allow for roleplay freedom & solo players!
+            // 4. Soft Conditions (Alone / Small Troop Count / Injured / Low Renown) -> Allow for roleplay freedom & solo players!
             quest.Npc = npc;
             quest.AcceptedIssue = issue;
             quest.RequiredGold = reqGold;
 
-            if ((flagsInt & PreconditionFlagNotEnoughTroops) != 0)
+            bool isSoloOrSmallParty = (flagsInt & PreconditionFlagNotEnoughTroops) != 0;
+            if (isSoloOrSmallParty)
             {
-                ModLog.Info($"[QuestBridge] Player taking quest with small/solo party ({npc.Name}). Allowing solo player freedom.");
+                ModLog.Info($"[QuestBridge] Player taking quest with small/solo party ({npc.Name}). Granting solo player freedom with dialogue guidance.");
+                return "The agreement is struck. The task is officially given into their hands. Note: since the player rides with few or no troops, the speaker may briefly remark with caution or admiration at their daring ('You ride with only a handful of men... be cautious'), offering parting advice and blessing their journey.";
             }
 
             return "The agreement is struck. The task is officially given into their hands. I speak on in my own words, thanking them, giving parting advice, or noting their courage.";
