@@ -141,12 +141,16 @@ namespace ImmersiveAI.Personas
 
             int current = 0;
             int target = 0;
+            string progressText = string.Empty;
             Try(() =>
             {
-                var latest = LatestJournalLine(quest, out current, out target);
-                if (latest.Length > 0)
-                    sentences.Add($"The last word of how it fares: {latest}");
+                progressText = LatestJournalLine(quest, out current, out target);
             });
+
+            if (!string.IsNullOrWhiteSpace(progressText))
+            {
+                sentences.Add($"Task progress: {progressText}");
+            }
 
             Try(() =>
             {
@@ -159,20 +163,20 @@ namespace ImmersiveAI.Personas
                     : $"Some {(int)Math.Round(days)} days remain before the chance is lost.");
             });
 
-            if (target > 0)
+            if (target > 0 && current < target)
             {
-                if (current < target)
-                {
-                    sentences.Add($"Ground truth known to me and local scouts: The task is NOT yet completed ({current} of {target} achieved). The enemies or troubles are STILL actively present out there. If the traveler claims they have already finished it, I know they are mistaken, boasting, or lying, and I react accordingly in character.");
-                }
-                else
-                {
-                    sentences.Add($"Ground truth: The required deed has been verified fulfilled on the map ({current} of {target} achieved).");
-                }
+                sentences.Add($"FACTUAL REALITY: The task is UNFINISHED ({current} of {target} completed). Local scouts and villagers confirm the bandits/enemies are STILL OUT THERE and actively raiding. If the traveler claims they have already finished it or asks for reward, I MUST flatly reject their claim (e.g. scoff, point out that scouts just spotted them in the hills, and tell them to go actually finish the job), and I MUST NEVER pretend to pay them or celebrate.");
+            }
+            else if (target > 0 && current >= target)
+            {
+                sentences.Add($"FACTUAL REALITY: The required map deeds have been verified completed ({current} of {target} achieved).");
+            }
+            else
+            {
+                sentences.Add("FACTUAL REALITY: The task is still actively underway on the map. Speak and react naturally to the ongoing progress in accordance with who you are.");
             }
 
-            sentences.Add("Important: Speak and react to the ongoing progress naturally in accordance with who you are and your standing with the traveler.");
-            sentences.Add("Notice on completing tasks: Field/combat deeds (such as destroying bandits or clearing hideouts) are concluded by the realm when fought and won on the map; do NOT call completion tools for combat deeds in conversation. Only when the traveler actually hands over physical goods or items from inventory for a delivery task should report_quest be called.");
+            sentences.Add("Notice on completing tasks: Field/combat deeds (such as destroying bandits or clearing hideouts) are concluded by the realm when fought and won on the map; do NOT call completion tools or hand out rewards for combat deeds in conversation.");
         }
 
         // Quests this hero gave that are not the issue's own — each named with its latest word.
@@ -226,12 +230,13 @@ namespace ImmersiveAI.Personas
                     target = rng;
                 }
 
-                Try(() =>
+                string task = null;
+                Try(() => task = TidingsFormatter.StripMarkup(log.TaskName?.ToString()));
+                if (!string.IsNullOrWhiteSpace(task) && rng > 0)
                 {
-                    var task = TidingsFormatter.StripMarkup(log.TaskName?.ToString());
-                    if (task.Length > 0 && log.Range > 0)
-                        text = $"{text} ({task}: {log.CurrentProgress} of {log.Range})";
-                });
+                    return $"{task}: {cur} of {rng}";
+                }
+
                 return text;
             }
             return string.Empty;
