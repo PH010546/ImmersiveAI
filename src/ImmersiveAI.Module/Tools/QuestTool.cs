@@ -22,6 +22,7 @@ namespace ImmersiveAI.Tools
             public Hero? Npc;
             public IssueBase? AcceptedIssue;
             public QuestBase? ReportedQuest;
+            public int RequiredGold;
         }
 
         public static readonly ToolDefinition AcceptTool = new ToolDefinition(AcceptQuest,
