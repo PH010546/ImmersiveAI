@@ -302,6 +302,28 @@ namespace ImmersiveAI
 
                     AppendRecordedTurn(hero, BattleText.BeatLine(record, participant, playerName),
                         string.Empty, OutreachMark.PlayerEngaged);
+
+                    // Check for Epic Battle Bond breakthrough
+                    var bond = Sentiments.BattleSignificanceEvaluator.EvaluateCompanionBond(record, hero, _config);
+                    if (bond.IsEpic && bond.BonusShift > 0)
+                    {
+                        ApplyRelationShift(hero, bond.BonusShift, isEpic: true);
+                        if (_sentimentLedger != null)
+                        {
+                            _sentimentLedger.RecordEvent(new Sentiments.SentimentEvent
+                            {
+                                HeroId = hero.StringId,
+                                Type = Sentiments.SentimentType.LivedSharedOrdeal,
+                                IsGrudge = false,
+                                Title = record.Title,
+                                Description = bond.Reason,
+                                GameDay = record.GameDay,
+                                DateText = record.DateText,
+                                PlaceName = record.PlaceName,
+                                Weight = 3
+                            }, NpcPaths.CampaignRoot);
+                        }
+                    }
                 }
                 catch { /* one soul's missed beat must not silence the rest */ }
             }

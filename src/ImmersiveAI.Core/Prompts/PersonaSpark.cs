@@ -170,7 +170,7 @@ namespace ImmersiveAI.Core.Prompts
             sb.AppendLine("- " + cardTwo);
             sb.AppendLine("Intensity drawn: " + intensity.Clause);
             sb.AppendLine();
-            sb.AppendLine($"Write 1 to 3 sentences in {their} own first-person voice, present tense — private truths {they} {holdsWord} about {(they == "they" ? "themselves" : they == "she" ? "herself" : "himself")}. Make them CONCRETE: name the person, the place, the habit, the sound, the smell. They must grow out of {their} story and traits, never contradict them, and never repeat what the facts above already say. No preamble, no quotes, no talk of cards or directors — output only the sentences themselves.");
+            sb.AppendLine($"Write 1 to 3 sentences in {their} own first-person voice, present tense — private truths {they} {holdsWord} about {(they == "they" ? "themselves" : they == "she" ? "herself" : "himself")}. Make them CONCRETE: name the person, the place, the habit, the sound, the smell. They must strictly match {their} given age in tone, perspective, and self-conception (a youth or young adult must never speak as an old or elderly person, and vice versa). They must grow out of {their} story and traits, never contradict them, and never repeat what the facts above already say. No preamble, no quotes, no talk of cards or directors — output only the sentences themselves.");
 
             return sb.ToString().TrimEnd();
         }

@@ -10,8 +10,10 @@ using ImmersiveAI.Core.Memory;
 using ImmersiveAI.Core.Prompts;
 using ImmersiveAI.Llm;
 using ImmersiveAI.Personas;
+using ImmersiveAI.Sentiments;
 using TaleWorlds.CampaignSystem;
 using TaleWorlds.CampaignSystem.Actions;
+using TaleWorlds.CampaignSystem.CharacterDevelopment;
 using TaleWorlds.CampaignSystem.Conversation;
 using TaleWorlds.CampaignSystem.Encounters;
 using TaleWorlds.CampaignSystem.GameState;
@@ -873,6 +875,9 @@ namespace ImmersiveAI
             CampaignEvents.OnPrisonerDonatedToSettlementEvent.AddNonSerializedListener(this, OnPrisonerDonatedForJourney);
             CampaignEvents.OnQuestStartedEvent.AddNonSerializedListener(this, OnQuestStartedForJourney);
             CampaignEvents.OnQuestCompletedEvent.AddNonSerializedListener(this, OnQuestCompletedForJourney);
+
+            // Sentiment & Debts of Honor (releasing prisoners & battlefield mercy)
+            CampaignEvents.HeroPrisonerReleased.AddNonSerializedListener(this, OnHeroPrisonerReleasedForSentiment);
         }
 
         // A conversation just closed. If it never became recorded beats (no free chat, no accepted
@@ -1022,6 +1027,7 @@ namespace ImmersiveAI
             LoadWeddingLedger();
             LoadBirthLedger();
             LoadNightLedger();
+            LoadSentimentLedger();
 
             // The world's nightly roll steps aside for the player's own marriages only while this
             // hook says so, and only while the feature is truly awake.
@@ -1827,18 +1833,86 @@ namespace ImmersiveAI
             catch { return string.Empty; }
         }
 
-        // Folds the NPC's own felt shift into the real game standing. They set it themselves, in
-        // character, and what the player is shown is the FELT number — how much the moment moved that
-        // heart — even when the standing is already pinned at the -100..100 rail (a soul at the deepest
-        // love can still be warmed; the rail just has nowhere left to move, like ChatAi's impact line).
-        // Must run on the game thread (touches campaign state and UI); RespondAsync calls it from
-        // inside the main-thread dispatch. Best-effort.
-        private void ApplyRelationShift(Hero npc, int shift)
+        private SentimentLedger? _sentimentLedger;
+
+        private void LoadSentimentLedger()
+        {
+            try { _sentimentLedger = SentimentLedger.Load(NpcPaths.CampaignRoot); }
+            catch { _sentimentLedger = null; }
+        }
+
+        internal static string SentimentsBlockFor(Hero npc) =>
+            Current?._sentimentLedger?.DescribeSentimentsFor(npc) ?? string.Empty;
+
+        private void OnHeroPrisonerReleasedForSentiment(Hero prisoner, PartyBase party, IFaction capturerFaction, EndCaptivityDetail detail, bool isFree)
+        {
+            try
+            {
+                if (prisoner == null || prisoner == Hero.MainHero) return;
+                var player = Hero.MainHero;
+                if (player == null) return;
+
+                bool releasedByPlayer = (party != null && party == PartyBase.MainParty)
+                    || (capturerFaction != null && capturerFaction == player.MapFaction);
+
+                if (releasedByPlayer)
+                {
+                    bool isBattleMercy = detail == EndCaptivityDetail.ReleasedAfterBattle;
+                    var type = isBattleMercy ? SentimentType.BattlefieldMercy : SentimentType.FreedFromCaptivity;
+
+                    // Trait-aware perception of mercy: calculating/suspicious lords suspect ulterior motives
+                    int honor = prisoner.GetTraitLevel(DefaultTraits.Honor);
+                    int calculating = prisoner.GetTraitLevel(DefaultTraits.Calculating);
+                    bool isSuspicious = calculating > 0 || honor < 0;
+
+                    string desc;
+                    if (isBattleMercy)
+                    {
+                        desc = isSuspicious
+                            ? "spared me upon the battlefield without ransom; though I still weigh what subtle scheme or play for influence lies behind such mercy, I walk free by their hand"
+                            : "spared me upon the battlefield with chivalric honor and granted me freedom without bonds";
+                    }
+                    else
+                    {
+                        desc = isSuspicious
+                            ? "granted me release from captivity; I take my freedom, though I keep my guard up"
+                            : "granted me release and freedom from captivity with true honor";
+                    }
+
+                    _sentimentLedger?.RecordEvent(new SentimentEvent
+                    {
+                        HeroId = prisoner.StringId,
+                        Type = type,
+                        IsGrudge = false,
+                        Title = isBattleMercy ? "Battlefield Mercy" : "Freed from Captivity",
+                        Description = desc,
+                        GameDay = CampaignTime.Now.ToDays,
+                        DateText = CampaignTime.Now.ToString(),
+                        PlaceName = prisoner.CurrentSettlement?.Name?.ToString() ?? string.Empty,
+                        Weight = 4
+                    }, NpcPaths.CampaignRoot);
+
+                    // Note: Numerical relation shift is handled natively by the Bannerlord game engine;
+                    // IA records the lived memory and psychological impression for dialogue.
+                }
+            }
+            catch { /* best-effort sentiment recording */ }
+        }
+
+        // Folds the NPC's own felt shift into the real game standing.
+        private void ApplyRelationShift(Hero npc, int shift, bool isEpic = false)
         {
             try
             {
                 var player = Hero.MainHero;
                 if (npc == null || player == null || shift == 0) return;
+
+                int effectiveShift = _sentimentLedger != null
+                    ? _sentimentLedger.GetEffectiveShift(npc, shift, CampaignTime.Now.ToDays, _config, isEpic)
+                    : shift;
+
+                if (effectiveShift == 0) return;
+                shift = effectiveShift;
 
                 int before = npc.GetRelation(player);
                 int target = Math.Max(-100, Math.Min(100, before + shift));
