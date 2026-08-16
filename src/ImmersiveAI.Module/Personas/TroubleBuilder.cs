@@ -66,6 +66,9 @@ namespace ImmersiveAI.Personas
             // quest) — the issue's own quest is already told above, so it is not repeated here.
             Try(() => DescribeGivenQuests(speaker, issue, sentences));
 
+            // Module 3: Quests where the speaker is the target recipient contact (e.g. delivery of goods or livestock)
+            Try(() => DescribeIncomingDeliveries(speaker, sentences));
+
             return sentences.Count == 0 ? string.Empty : string.Join(" ", sentences);
         }
 
@@ -248,6 +251,36 @@ namespace ImmersiveAI.Personas
                 var latest = LatestJournalLine(quest, out cur, out tgt);
                 if (latest.Length > 0)
                     sentences.Add($"The last word of it: {latest}");
+            }
+        }
+
+        // Deliveries or errands where this hero is the designated recipient/contact on behalf of another party.
+        private static void DescribeIncomingDeliveries(Hero speaker, List<string> sentences)
+        {
+            var quests = Campaign.Current.QuestManager?.Quests;
+            if (quests == null || speaker == null) return;
+
+            var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public;
+            foreach (var quest in quests)
+            {
+                if (quest == null || !quest.IsOngoing || quest.QuestGiver == speaker) continue;
+                if (!Tools.QuestTool.IsQuestTargetHero(quest, speaker)) continue;
+
+                string questTitle = quest.Title?.ToString() ?? "a delivery";
+                string giverName = quest.QuestGiver?.Name?.ToString() ?? "someone";
+                string giverHome = quest.QuestGiver?.CurrentSettlement?.Name?.ToString() ?? quest.QuestGiver?.HomeSettlement?.Name?.ToString() ?? "their settlement";
+                var player = Hero.MainHero?.Name?.ToString() ?? "the traveler";
+
+                var qType = quest.GetType();
+                var herdType = (qType.GetField("_herdTypeToDeliver", flags) ?? qType.GetField("_requestedItem", flags))?.GetValue(quest) as ItemObject;
+                int count = 0;
+                var countField = qType.GetField("_animalCountToDeliver", flags) ?? qType.GetField("_itemCountToDeliver", flags);
+                if (countField != null) count = Convert.ToInt32(countField.GetValue(quest));
+
+                string cargoDesc = herdType != null ? (count > 0 ? $"{count} {herdType.Name}" : $"{herdType.Name}") : "the promised delivery";
+
+                sentences.Add($"Expected delivery: I am awaiting a delivery of {cargoDesc} sent by {giverName} of {giverHome}, which {player} agreed to bring to me.");
+                sentences.Add($"Important: When {player} presents the delivery or states they have brought the {cargoDesc} on behalf of {giverName}, I inspect and receive the goods and I MUST call report_quest to formally accept the delivery and conclude the task. (If they speak casually of other matters, converse normally).");
             }
         }
 

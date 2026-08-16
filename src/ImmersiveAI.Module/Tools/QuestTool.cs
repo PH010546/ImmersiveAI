@@ -63,9 +63,21 @@ namespace ImmersiveAI.Tools
             {
                 if (npc == null || Campaign.Current?.QuestManager == null) return null;
                 return Campaign.Current.QuestManager.Quests
-                    .FirstOrDefault(q => q.QuestGiver == npc && !q.IsFinalized);
+                    .FirstOrDefault(q => (q.QuestGiver == npc || IsQuestTargetHero(q, npc)) && !q.IsFinalized);
             }
             catch { return null; }
+        }
+
+        public static bool IsQuestTargetHero(QuestBase? q, Hero? npc)
+        {
+            if (q == null || npc == null) return false;
+            try
+            {
+                var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public;
+                var targetHero = (q.GetType().GetField("_targetHero", flags) ?? q.GetType().GetField("_destinationHero", flags) ?? q.GetType().GetField("_recipientHero", flags))?.GetValue(q) as Hero;
+                return targetHero == npc;
+            }
+            catch { return false; }
         }
     }
 }
