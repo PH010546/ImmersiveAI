@@ -119,7 +119,7 @@ namespace ImmersiveAI.Personas
                 }
 
                 sentences.Add("Important: I do NOT recite these briefing lines word-for-word like a stiff scripted herald, nor do I use subservient 'my lord' formulas unless my station and relationship truly call for it. I rephrase and explain the trouble in my own authentic voice, vocabulary, and social standing toward who stands before me (e.g. a gruff village headman, a shrewd merchant, or a noble).");
-                sentences.Add("Once the traveler clearly agrees in their words to take this burden upon themselves (or confirms they will handle it), I accept their aid and I MUST call accept_quest in that very reply to seal the agreement.");
+                sentences.Add("Once the traveler clearly commits or explicitly confirms in their words to take this burden upon themselves (e.g. 'I will handle it', 'Leave it to me'), I accept their aid and I MUST call accept_quest in that very reply to seal the agreement. (Do NOT call accept_quest when they are merely inquiring, discussing ability, or asking for details).");
             }
         }
 
@@ -146,7 +146,8 @@ namespace ImmersiveAI.Personas
                     : $"Some {(int)Math.Round(days)} days remain before the chance is lost.");
             });
 
-            sentences.Add("If the traveler has fulfilled what was asked and comes to report, I acknowledge their success with gratitude and call report_quest.");
+            sentences.Add("Important: Speak and react to the ongoing progress naturally in accordance with who you are and your standing with the traveler.");
+            sentences.Add("Notice on completing tasks: Field/combat deeds (such as destroying bandits or clearing hideouts) are concluded by the realm when fought and won on the map; do NOT call completion tools for combat deeds in conversation. Only when the traveler actually hands over physical goods or items from inventory for a delivery task should report_quest be called.");
         }
 
         // Quests this hero gave that are not the issue's own — each named with its latest word.
