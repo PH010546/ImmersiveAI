@@ -93,15 +93,14 @@ namespace ImmersiveAI.Personas
         // rather than literal dialogue quotes, directing the LLM to paraphrase in its own persona across all languages.
         private static void DescribeOwnIssue(IssueBase issue, List<string> sentences, Hero speaker, Hero partner)
         {
-            string title = null, desc = null, brief = null, ask = null;
+            string title = null, desc = null, brief = null, questAsk = null, altAsk = null;
             Try(() => title = TidingsFormatter.StripMarkup(issue.Title?.ToString()));
             Try(() => desc = TidingsFormatter.StripMarkup(issue.Description?.ToString()));
             Try(() => brief = TidingsFormatter.StripMarkup(issue.IssueBriefByIssueGiver?.ToString()));
-            Try(() => ask = TidingsFormatter.StripMarkup(issue.IssueQuestSolutionExplanationByIssueGiver?.ToString()));
-            if (string.IsNullOrWhiteSpace(ask))
-                Try(() => ask = TidingsFormatter.StripMarkup(issue.IssueAlternativeSolutionExplanationByIssueGiver?.ToString()));
-            if (string.IsNullOrWhiteSpace(ask))
-                Try(() => ask = TidingsFormatter.StripMarkup(issue.IssueAcceptByPlayer?.ToString()));
+            Try(() => questAsk = TidingsFormatter.StripMarkup(issue.IssueQuestSolutionExplanationByIssueGiver?.ToString()));
+            Try(() => altAsk = TidingsFormatter.StripMarkup(issue.IssueAlternativeSolutionExplanationByIssueGiver?.ToString()));
+            if (string.IsNullOrWhiteSpace(questAsk) && string.IsNullOrWhiteSpace(altAsk))
+                Try(() => questAsk = TidingsFormatter.StripMarkup(issue.IssueAcceptByPlayer?.ToString()));
 
             sentences.Add(string.IsNullOrWhiteSpace(title)
                 ? "A trouble weighs on me in these days."
@@ -132,8 +131,11 @@ namespace ImmersiveAI.Personas
                 if (!string.IsNullOrWhiteSpace(brief) && !string.Equals(brief, desc, StringComparison.OrdinalIgnoreCase))
                     sentences.Add($"Background of the trouble: {brief}");
 
-                if (!string.IsNullOrWhiteSpace(ask) && !string.Equals(ask, desc, StringComparison.OrdinalIgnoreCase) && !string.Equals(ask, brief, StringComparison.OrdinalIgnoreCase))
-                    sentences.Add($"Specific scope and solution details: {ask}");
+                if (!string.IsNullOrWhiteSpace(questAsk) && !string.Equals(questAsk, desc, StringComparison.OrdinalIgnoreCase) && !string.Equals(questAsk, brief, StringComparison.OrdinalIgnoreCase))
+                    sentences.Add($"Specific request scope: {questAsk}");
+
+                if (!string.IsNullOrWhiteSpace(altAsk) && !string.Equals(altAsk, desc, StringComparison.OrdinalIgnoreCase) && !string.Equals(altAsk, brief, StringComparison.OrdinalIgnoreCase) && !string.Equals(altAsk, questAsk, StringComparison.OrdinalIgnoreCase))
+                    sentences.Add($"Alternative delegation or scope details: {altAsk}");
 
                 // Soft condition awareness in the discovery phase (solo traveler / small party)
                 int flagsInt = 0;
@@ -152,7 +154,7 @@ namespace ImmersiveAI.Personas
                     sentences.Add("Note on who stands before me: they ride with very few men or travel alone for a dangerous task. When they merely inquire about general local troubles or ask after the village, I should mention the trouble with realistic hesitation and doubt ('We have a problem with bandits, but it is far too perilous for a lone traveler...'), withholding the full proposal until they press further or show confidence.");
                 }
 
-                sentences.Add("Important: Address the traveler strictly according to who stands before you, their true station, and your relationship (e.g. speaking informally/gruffly to an unknown wandering traveler, or respectfully to a recognized noble/ruling lord). Paraphrase the core request, specific goods, quantities, and destination locations naturally in your own authentic voice and vocabulary according to your personality, without verbatim reciting canned script formulas.");
+                sentences.Add("Important: Address the traveler strictly according to who stands before you, their true station, and your relationship. The traveler may choose to undertake this task personally or resolve it through their people. Paraphrase the core trouble, destination, and goods naturally in your own authentic voice according to your personality, allowing the traveler to handle it directly or delegate as they see fit, without verbatim reciting canned script formulas.");
                 sentences.Add("Once the traveler clearly commits or explicitly confirms in their words to take this burden upon themselves (e.g. 'I will handle it', 'Leave it to me'), I accept their aid and I MUST call accept_quest in that very reply to seal the agreement. (Do NOT call accept_quest when they are merely inquiring, discussing ability, or asking for details).");
             }
         }
