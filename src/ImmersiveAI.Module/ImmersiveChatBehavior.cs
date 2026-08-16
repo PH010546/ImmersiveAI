@@ -758,7 +758,7 @@ namespace ImmersiveAI
         }
 
         // Loads this NPC's memory from its own folder, migrating old flat-layout files forward first.
-        private NpcMemory LoadMemory(Hero npc)
+        public NpcMemory LoadMemory(Hero npc)
         {
             NpcPaths.EnsureMigrated(npc);
             var memory = _memoryStore.LoadFrom(NpcPaths.MemoryFile(npc), npc.StringId);
@@ -873,6 +873,9 @@ namespace ImmersiveAI
 
             // Travel orientation and spatial displacement tracking (vector displacement, compass direction & milestones)
             CampaignEvents.SettlementEntered.AddNonSerializedListener(this, Personas.TravelOrientationTracker.OnSettlementEntered);
+
+            // Quest completion tracker for unacknowledged map victory awareness
+            CampaignEvents.OnQuestCompletedEvent.AddNonSerializedListener(this, Tools.QuestCompletionTracker.OnQuestCompleted);
             CampaignEvents.MapEventEnded.AddNonSerializedListener(this, Personas.TravelOrientationTracker.OnMapEventEnded);
             CampaignEvents.OnSiegeEventEndedEvent.AddNonSerializedListener(this, Personas.TravelOrientationTracker.OnSiegeEventEnded);
 
