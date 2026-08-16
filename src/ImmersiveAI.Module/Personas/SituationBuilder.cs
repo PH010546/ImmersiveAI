@@ -756,8 +756,17 @@ namespace ImmersiveAI.Personas
             else if (station != null)
                 head = $"{them} is {station}" + (age != null ? $", {age}" : string.Empty);
             else
-                head = $"{them} stands before me" + (age != null ? $", {age}" : string.Empty);
             sentences.Add(head.TrimEnd() + ".");
+
+            if (partner == Hero.MainHero)
+            {
+                Try(() =>
+                {
+                    string visual = PlayerVisualBuilder.Build(partner);
+                    if (!string.IsNullOrWhiteSpace(visual))
+                        sentences.Add("What my eyes see of their appearance and bearing: " + visual.Trim());
+                });
+            }
 
             var house = HouseLine(partner, clan, kingdom);
             if (house != null) sentences.Add(house);

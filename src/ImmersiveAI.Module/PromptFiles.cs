@@ -50,6 +50,57 @@ namespace ImmersiveAI
 # you speak with someone - no restart needed.
 ";
 
+        public static string PlayerDescriptionPath => Path.Combine(RootDirectory, "player_description.txt");
+
+        private const string PlayerDescriptionTemplate =
+@"# Immersive AI - Player Description: How your character appears to the world
+#
+# Whatever you write here (except lines starting with # or //, which are ignored)
+# will be perceived by NPCs when they look upon you in conversation.
+#
+# This allows you to define visual details that the base game does not model,
+# such as notable facial features, scars, physique, demeanor, distinctive clothing,
+# ornaments, family crests, relics, or visible gear.
+#
+# Examples (remove the leading '# ' to use or adapt):
+#
+#   Tall and broad-shouldered, with weathered skin, piercing grey eyes, and a rugged black beard.
+#
+#   Has a jagged dueling scar running across the left cheek, and carries a quiet, watchful bearing.
+#
+#   Wears a tarnished brass ring and a faded merchant's cloak over sturdy chainmail.
+#
+#   A slender youth with sharp features, dressed in humble traveling furs with a wolf-pelt hood.
+#
+# You can also place a 'player_description.txt' inside a specific campaign folder
+# under NPCs\campaign_<id>\ to override your appearance for that playthrough.
+# Changes take effect the next time you speak with someone - no restart needed.
+";
+
+        /// <summary>Reads the player description, creating a commented template on first run. Returns the text with comment lines stripped.</summary>
+        public static string LoadPlayerDescription()
+        {
+            try
+            {
+                // Check campaign-specific override first if available
+                if (!string.IsNullOrEmpty(NpcPaths.ActiveCampaignId))
+                {
+                    var campaignOverride = Path.Combine(NpcPaths.CampaignRoot, "player_description.txt");
+                    if (File.Exists(campaignOverride))
+                        return StripComments(File.ReadAllText(campaignOverride));
+                }
+
+                Directory.CreateDirectory(RootDirectory);
+                if (!File.Exists(PlayerDescriptionPath))
+                    File.WriteAllText(PlayerDescriptionPath, PlayerDescriptionTemplate);
+                return StripComments(File.ReadAllText(PlayerDescriptionPath));
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
         /// <summary>Reads the global prompt, creating a commented template on first run. Returns the text with comment lines stripped.</summary>
         public static string LoadGlobalPrompt()
         {
