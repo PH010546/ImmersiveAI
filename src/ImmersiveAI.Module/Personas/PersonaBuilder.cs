@@ -137,7 +137,9 @@ namespace ImmersiveAI.Personas
                 if (worth <= 0) return string.Empty;
 
                 var sb = new StringBuilder();
-                sb.Append($"I live by selling my sword, and I know my own terms before anyone asks: my service is honestly worth some {worth} denars to take me on, and my keep thereafter is {wage} denars a day — the day-wage is set by the custom of the world for one of my seasoning, a hard rule; no words of mine or theirs can move it, and I say so plainly if pressed.");
+                // Discovered during Traditional Chinese playtesting: 'to take me on' without explicit timing
+                // caused LLMs in non-English localizations to hallucinate '{worth}' as a monthly salary instead of a one-time joining fee.
+                sb.Append($"I live by selling my sword, and I know my own terms before anyone asks: my service is honestly worth some {worth} denars as a ONE-TIME upfront hiring fee to take me on (a single joining and equipment cost paid once upon hiring, NOT a monthly salary or recurring payment), and my keep thereafter is an ongoing daily wage of {wage} denars a day — the day-wage is set by the custom of the world for one of my seasoning, a hard rule; no words of mine or theirs can move it, and I say so plainly if pressed.");
 
                 bool hiringByWord = config == null || config.EnableConversationHiring;
                 int percent = config?.ConversationHiringHagglePercent ?? 30;
@@ -149,7 +151,7 @@ namespace ImmersiveAI.Personas
                 }
                 else if (hiringByWord)
                 {
-                    sb.Append($" The hiring price too stands where it stands — {worth}, no more and no less; such is the rule I live under, and I say so plainly.");
+                    sb.Append($" The upfront hiring fee too stands where it stands — {worth}, no more and no less; such is the rule I live under, and I say so plainly.");
                 }
                 return sb.ToString();
             }
