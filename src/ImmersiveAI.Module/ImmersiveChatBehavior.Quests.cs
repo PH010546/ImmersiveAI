@@ -151,14 +151,73 @@ namespace ImmersiveAI
             var questTitle = activeQuest?.Title?.ToString() ?? "Unknown";
             ModLog.Info($"[QuestBridge] LLM called report_quest for {npc?.Name} (Active quest: '{questTitle}')");
 
-            if (activeQuest != null && quest != null)
+            if (activeQuest == null || quest == null)
             {
-                quest.Npc = npc;
-                quest.ReportedQuest = activeQuest;
-                return "I acknowledge the completion of the deed with gratitude. I speak on in my own words, offering our thanks and rewards.";
+                ModLog.Warn($"[QuestBridge] report_quest called for {npc?.Name}, but no active quest was found.");
+                return "No ongoing task was found.";
             }
-            ModLog.Warn($"[QuestBridge] report_quest called for {npc?.Name}, but no active quest was found.");
-            return "No ongoing task was found.";
+
+            var questType = activeQuest.GetType();
+            var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic;
+
+            // 1. Check if the quest has a specific condition check (e.g. PlayerHasTools, PlayerHasRequestedGoods, etc.)
+            var conditionMethod = questType.GetMethod("PlayerHasTools", flags)
+                ?? questType.GetMethod("PlayerHasRequestedGoods", flags)
+                ?? questType.GetMethod("IsGoalReached", flags)
+                ?? questType.GetMethod("CanPlayerCompleteQuest", flags);
+
+            if (conditionMethod != null)
+            {
+                try
+                {
+                    bool canComplete = (bool)conditionMethod.Invoke(activeQuest, null);
+                    if (!canComplete)
+                    {
+                        ModLog.Info($"[QuestBridge] Refusing report_quest for {npc.Name}: Condition {conditionMethod.Name} returned false (player lacks required items/progress).");
+                        return "The task deed or delivery is not yet accomplished: the required items or progress have not been verified in inventory. The task remains ongoing.";
+                    }
+                }
+                catch (Exception ex)
+                {
+                    ModLog.Warn($"[QuestBridge] Error evaluating quest condition {conditionMethod.Name}: {ex.Message}");
+                }
+            }
+
+            // 2. Check if the quest is an on-map combat quest with undefeated party targets
+            var destroyedCountField = questType.GetField("_destroyedPartyCount", flags);
+            var totalCountField = questType.GetField("_totalPartyCount", flags);
+            if (destroyedCountField != null && totalCountField != null)
+            {
+                try
+                {
+                    int destroyed = Convert.ToInt32(destroyedCountField.GetValue(activeQuest));
+                    int total = Convert.ToInt32(totalCountField.GetValue(activeQuest));
+                    if (destroyed < total)
+                    {
+                        ModLog.Info($"[QuestBridge] Refusing report_quest for {npc.Name}: Outlaws not yet destroyed ({destroyed}/{total}).");
+                        return "The deed is not yet accomplished: the outlaws are still reported roaming the lands. The matter remains ongoing until they are dealt with on the map.";
+                    }
+                }
+                catch { }
+            }
+
+            // 3. Find genuine native turn-in consequence/finish method
+            var finishMethod = questType.GetMethod("FinishQuestSuccess", flags)
+                ?? questType.GetMethod("FinishQuestSuccess1", flags)
+                ?? questType.GetMethod("SuccessConsequences", flags)
+                ?? questType.GetMethod("QuestSuccessConsequences", flags);
+
+            if (finishMethod == null)
+            {
+                ModLog.Info($"[QuestBridge] Refusing report_quest for {npc.Name}: No native dialogue finish method found for {questType.Name}. Quest must be resolved via map events.");
+                return "The deed is not something resolved by mere spoken words: its outcome will be decided by actions on the map. Continue your duty until finished.";
+            }
+
+            quest.Npc = npc;
+            quest.ReportedQuest = activeQuest;
+            quest.CompletionMethod = finishMethod;
+
+            return "I acknowledge the completion of the deed and receive the delivered goods with gratitude. I speak on in my own authentic words.";
         }
 
         private void DispatchQuestOutcomes(QuestTool.Tally? quest)
@@ -267,21 +326,23 @@ namespace ImmersiveAI
             {
                 var questToReport = quest.ReportedQuest;
                 var npc = quest.Npc ?? questToReport.QuestGiver;
+                var methodToInvoke = quest.CompletionMethod;
+
                 MainThreadDispatcher.Enqueue(() =>
                 {
                     try
                     {
-                        if (questToReport != null && !questToReport.IsFinalized)
+                        if (questToReport != null && !questToReport.IsFinalized && methodToInvoke != null)
                         {
                             var title = questToReport.Title?.ToString() ?? "Quest";
-                            ModLog.Info($"[QuestBridge] Completing quest with success: '{title}' for {npc?.Name}");
-                            questToReport.CompleteQuestWithSuccess();
+                            ModLog.Info($"[QuestBridge] Executing native quest completion method '{methodToInvoke.Name}' for '{title}' ({npc?.Name})");
+                            methodToInvoke.Invoke(questToReport, null);
                             InformationManager.DisplayMessage(
                                 new InformationMessage($"Quest Completed: {title}", new Color(0.95f, 0.85f, 0.35f, 1f)));
                         }
                         else
                         {
-                            ModLog.Warn($"[QuestBridge] Cannot complete quest for {npc?.Name}: quest is null or already finalized.");
+                            ModLog.Warn($"[QuestBridge] Cannot complete quest for {npc?.Name}: method is null or quest already finalized.");
                         }
                     }
                     catch (Exception ex)

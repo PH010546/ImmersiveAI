@@ -22,20 +22,21 @@ namespace ImmersiveAI.Tools
             public Hero? Npc;
             public IssueBase? AcceptedIssue;
             public QuestBase? ReportedQuest;
+            public System.Reflection.MethodInfo? CompletionMethod;
             public int RequiredGold;
         }
 
         public static readonly ToolDefinition AcceptTool = new ToolDefinition(AcceptQuest,
-            "Formally hand over my spoken issue or task to the traveler who has agreed in words to take it upon themselves. " +
-            "You MUST call this tool whenever the traveler offers or agrees to help or take the task, to seal the quest into the game engine.",
+            "Formally hand over my spoken issue or task to the traveler only after they have clearly and explicitly committed in words to take it upon themselves (e.g. 'I will do it', 'Leave it to me'). " +
+            "Do NOT call this when they are merely inquiring, discussing possibilities, or stating their skills.",
             new[]
             {
                 new ToolParameter("confirmation", "A brief phrase confirming the task agreed upon.", required: false)
             });
 
         public static readonly ToolDefinition ReportTool = new ToolDefinition(ReportQuest,
-            "Acknowledge the completion of the ongoing quest that the traveler rode upon for me, " +
-            "granting them our gratitude and rewards in the game engine.",
+            "Acknowledge the handover and completion of a physical delivery-type quest when the traveler has brought and delivered the required items from inventory. " +
+            "(On-map combat deeds such as destroying bandits or clearing hideouts are concluded automatically when the battle is won on the map; do not call this tool for combat tasks).",
             new[]
             {
                 new ToolParameter("result", "Confirmation of the quest result.", required: false)
