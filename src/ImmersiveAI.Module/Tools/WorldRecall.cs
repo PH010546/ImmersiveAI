@@ -406,13 +406,13 @@ namespace ImmersiveAI.Tools
             // Live geographical bearing and distance relative to the asker's current location
             Try(() =>
             {
-                var askerPos = asker?.CurrentSettlement?.Position2D ?? asker?.PartyBelongedTo?.Position2D ?? Hero.MainHero?.CurrentSettlement?.Position2D ?? Hero.MainHero?.PartyBelongedTo?.Position2D;
+                var askerPos = asker?.CurrentSettlement?.Position ?? asker?.PartyBelongedTo?.Position ?? Hero.MainHero?.CurrentSettlement?.Position ?? Hero.MainHero?.PartyBelongedTo?.Position;
                 if (askerPos.HasValue && (askerPos.Value.X != 0f || askerPos.Value.Y != 0f))
                 {
-                    var dir = Personas.TravelOrientationTracker.GetCardinalDirection(askerPos.Value, s.Position2D);
-                    var miles = Personas.TravelOrientationTracker.EstimateMiles(askerPos.Value, s.Position2D);
+                    var dir = Personas.TravelOrientationTracker.GetCardinalDirection(askerPos.Value, s.Position);
+                    var travelTime = Personas.TravelOrientationTracker.EstimateTravelTime(askerPos.Value, s.Position);
                     var hereName = asker?.CurrentSettlement?.Name?.ToString() ?? Hero.MainHero?.CurrentSettlement?.Name?.ToString() ?? "here";
-                    lines.Add($"From where we stand ({hereName}), it lies to the {dir} (some {miles} miles away).");
+                    lines.Add($"From where we stand ({hereName}), it lies to the {dir} ({travelTime}).");
                 }
             });
 
