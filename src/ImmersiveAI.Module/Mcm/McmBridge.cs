@@ -243,7 +243,7 @@ namespace ImmersiveAI.Mcm
                 s.NotifyWhenReplyReady, s.EnableNpcInitiatedChats, s.Socialness, s.ShowSocialnessControl,
                 s.EnableLetters, s.EnableWorldRecall, s.EnableWebSearch,
                 s.EnableConversationHiring, s.ConversationHiringHagglePercent,
-                s.EnableConversationMarriage, s.AllowCompanionMarriage, s.MarriageNeedsFamilyConsent,
+                s.EnableConversationMarriage, s.EnableQuestDialogueBridge, s.AllowCompanionMarriage, s.MarriageNeedsFamilyConsent,
                 s.MarriageDowryHagglePercent, s.CourtshipCharmSlack, s.MinBetrothalDays,
                 SelectedOf(s.PersonaSparkMode),
                 s.EnableNights, s.NightsAutoVisit, s.NightsPreventChild, s.NightCooldownHours,
@@ -260,7 +260,7 @@ namespace ImmersiveAI.Mcm
         /// <summary>The config side of the same fields — raw values; any change means "push to menu".</summary>
         private static string CfgSignature(ModConfig c)
         {
-            return string.Join("",
+            return string.Join(" ",
                 c.Backend, c.AnthropicApiKey, c.AnthropicModel,
                 c.OpenAIApiKey, c.OpenAIModel,
                 c.OpenRouterApiKey, c.OpenRouterModel,
@@ -271,7 +271,7 @@ namespace ImmersiveAI.Mcm
                 c.NotifyWhenReplyReady, c.EnableNpcInitiatedChats, c.DailyInitiationRate, c.ShowSocialnessControl,
                 c.EnableLetters, c.EnableWorldRecall, c.EnableWebSearch,
                 c.EnableConversationHiring, c.ConversationHiringHagglePercent,
-                c.EnableConversationMarriage, c.AllowCompanionMarriage, c.MarriageNeedsFamilyConsent,
+                c.EnableConversationMarriage, c.EnableQuestDialogueBridge, c.AllowCompanionMarriage, c.MarriageNeedsFamilyConsent,
                 c.MarriageDowryHagglePercent, c.CourtshipCharmSlack, c.MinBetrothalDays,
                 c.PersonaSparkMode,
                 c.EnableNights, c.NightsAutoVisit, c.NightsPreventChild, c.NightCooldownHours,
@@ -325,6 +325,7 @@ namespace ImmersiveAI.Mcm
             s.EnableConversationHiring = c.EnableConversationHiring;
             s.ConversationHiringHagglePercent = Clamp(c.ConversationHiringHagglePercent, 0, 90);
             s.EnableConversationMarriage = c.EnableConversationMarriage;
+            s.EnableQuestDialogueBridge = c.EnableQuestDialogueBridge;
             s.AllowCompanionMarriage = c.AllowCompanionMarriage;
             s.MarriageNeedsFamilyConsent = c.MarriageNeedsFamilyConsent;
             s.MarriageDowryHagglePercent = Clamp(c.MarriageDowryHagglePercent, 0, 90);
@@ -341,6 +342,11 @@ namespace ImmersiveAI.Mcm
             s.EnableNightWindow = c.EnableNightWindow;
             Select(s.NightWindowHotkey, c.NightWindowHotkey);
             s.RevertMemoriesWithSaves = c.RevertMemoriesWithSaves;
+
+            s.EnableDailyRelationCap = c.EnableDailyRelationCap;
+            s.DailyDialogueRelationCap = Clamp(c.DailyDialogueRelationCap, 1, 10);
+            s.EpicBattleOddsRatio = Math.Max(1.5f, Math.Min(5.0f, c.EpicBattleOddsRatio));
+            s.EnableSentimentDefense = c.EnableSentimentDefense;
 
             PushMemoryToMenu(s, c);
 
@@ -419,6 +425,7 @@ namespace ImmersiveAI.Mcm
             c.EnableConversationHiring = s.EnableConversationHiring;
             c.ConversationHiringHagglePercent = s.ConversationHiringHagglePercent;
             c.EnableConversationMarriage = s.EnableConversationMarriage;
+            c.EnableQuestDialogueBridge = s.EnableQuestDialogueBridge;
             c.AllowCompanionMarriage = s.AllowCompanionMarriage;
             c.MarriageNeedsFamilyConsent = s.MarriageNeedsFamilyConsent;
             c.MarriageDowryHagglePercent = s.MarriageDowryHagglePercent;
@@ -435,6 +442,11 @@ namespace ImmersiveAI.Mcm
             c.EnableNightWindow = s.EnableNightWindow;
             c.NightWindowHotkey = SelectedOf(s.NightWindowHotkey) ?? c.NightWindowHotkey;
             c.RevertMemoriesWithSaves = s.RevertMemoriesWithSaves;
+
+            c.EnableDailyRelationCap = s.EnableDailyRelationCap;
+            c.DailyDialogueRelationCap = s.DailyDialogueRelationCap;
+            c.EpicBattleOddsRatio = s.EpicBattleOddsRatio;
+            c.EnableSentimentDefense = s.EnableSentimentDefense;
 
             // The consolidation dials: the menu's ranges are the config's own rails, so these ride
             // straight across. Normalize (run by the caller) then enforces the pairs' order — a keep

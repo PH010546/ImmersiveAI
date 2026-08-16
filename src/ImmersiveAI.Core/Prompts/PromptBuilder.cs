@@ -726,6 +726,10 @@ namespace ImmersiveAI.Core.Prompts
             if (persona.CanBlessTroth)
                 sb.AppendLine("- The one of my house who is promised to them awaits my word: the blessing of that match is mine to give or withhold, and by the custom of the world it carries a bride-price. Only when we have truly spoken of the match, and a price has passed between us in words, do I lay my blessing and its price formally before them — the gold and the choice remain wholly theirs, nothing is settled until they seal it, and I never volunteer my lowest. If they let it lie, I do not press; and my word is not for sale to one I hold in contempt.");
 
+            // Offered only when the quest bridge tool rides along
+            if (persona.CanBridgeQuests)
+                sb.AppendLine("- When a trouble or task weighs upon me and the traveler plainly agrees in their words to take it upon themselves, I accept their aid and MUST call accept_quest in that very breath to hand the burden over; nothing is settled in the world until the tool is called. When they return having fulfilled what I asked, I MUST call report_quest to acknowledge their deed.");
+
             // The storyteller's gentle guidance on tone and spirit — offered as freedom, never a leash.
             if (!string.IsNullOrWhiteSpace(persona.RoleplayGuidance))
                 sb.AppendLine(persona.RoleplayGuidance.Trim());

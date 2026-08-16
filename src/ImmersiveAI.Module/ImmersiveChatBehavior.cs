@@ -10,8 +10,10 @@ using ImmersiveAI.Core.Memory;
 using ImmersiveAI.Core.Prompts;
 using ImmersiveAI.Llm;
 using ImmersiveAI.Personas;
+using ImmersiveAI.Sentiments;
 using TaleWorlds.CampaignSystem;
 using TaleWorlds.CampaignSystem.Actions;
+using TaleWorlds.CampaignSystem.CharacterDevelopment;
 using TaleWorlds.CampaignSystem.Conversation;
 using TaleWorlds.CampaignSystem.Encounters;
 using TaleWorlds.CampaignSystem.GameState;
@@ -171,8 +173,7 @@ namespace ImmersiveAI
         // tools, resolved from live campaign data on the game thread) and, when granted, the
         // counsel of the far-seeing sages (a web search, resolved off-thread). Every spoken path
         // goes through here; short utility calls (the feeling number, the yes/no of a reaching-out)
-        // stay on plain CompleteAsync, where a recall would only slow the answer down.
-        private Task<string> CompleteSpokenAsync(IReadOnlyList<ChatMessage> messages, Hero npc, Tools.HeartTool.Tally? heart = null, NpcMemory? liveMemory = null, Tools.BargainTool.Tally? bargain = null, Tools.TrothTool.Tally? troth = null, Tools.TrothTool.BlessTally? bless = null)
+        private Task<string> CompleteSpokenAsync(IReadOnlyList<ChatMessage> messages, Hero npc, Tools.HeartTool.Tally? heart = null, NpcMemory? liveMemory = null, Tools.BargainTool.Tally? bargain = null, Tools.TrothTool.Tally? troth = null, Tools.TrothTool.BlessTally? bless = null, Tools.QuestTool.Tally? quest = null)
         {
             var tools = new List<ToolDefinition>();
             if (CanRecallWorld()) tools.AddRange(Tools.WorldRecall.Tools);
@@ -198,6 +199,14 @@ namespace ImmersiveAI
             // marriage, tended by her alone (the retired matchmaker's checkable asks, unrobotted).
             if (troth != null) { tools.Add(Tools.TrothTool.Tend); tools.Add(Tools.MisgivingTool.Tool); }
             if (bless != null) tools.Add(Tools.TrothTool.Bless);
+
+            // Native Quest / Issue dialogue bridge
+            if (quest != null)
+            {
+                if (Tools.QuestTool.GetAvailableIssue(npc) != null) tools.Add(Tools.QuestTool.AcceptTool);
+                if (Tools.QuestTool.GetActiveQuest(npc) != null) tools.Add(Tools.QuestTool.ReportTool);
+            }
+
             if (tools.Count == 0)
                 return _client.CompleteAsync(messages);
 
@@ -205,12 +214,12 @@ namespace ImmersiveAI
             // question ("how might I grant my ships…") becomes a query that truly finds answers.
             var recentContext = LastIncomingWords(messages);
 
-            // The heart's hand and the personal hands (the bargain, the troth) are not recalls:
+            // The heart's hand and the personal hands (the bargain, the troth, the quest) are not recalls:
             // they keep at least one round even when the recall budget is zeroed out.
-            int rounds = (heartRides || bargain != null || troth != null || bless != null) ? Math.Max(1, _config.MaxRecallsPerReply) : _config.MaxRecallsPerReply;
+            int rounds = (heartRides || bargain != null || troth != null || bless != null || quest != null) ? Math.Max(1, _config.MaxRecallsPerReply) : _config.MaxRecallsPerReply;
             return ToolLoopRunner.RunAsync(
                 _client, messages, tools,
-                call => ResolveToolAsync(call, npc, heart, liveMemory, recentContext, bargain, troth, bless),
+                call => ResolveToolAsync(call, npc, heart, liveMemory, recentContext, bargain, troth, bless, quest),
                 rounds);
         }
 
@@ -234,7 +243,7 @@ namespace ImmersiveAI
         // Routes one tool call to its resolver, announcing the activity to the player first so the
         // wait is never silent ("remembering…", "researching…"). The heart's shift gets no notice
         // of its own — the colored relation line that follows IS the notice.
-        private Task<string> ResolveToolAsync(Core.Llm.ToolCall call, Hero npc, Tools.HeartTool.Tally? heart, NpcMemory? liveMemory, string recentContext, Tools.BargainTool.Tally? bargain = null, Tools.TrothTool.Tally? troth = null, Tools.TrothTool.BlessTally? bless = null)
+        private Task<string> ResolveToolAsync(Core.Llm.ToolCall call, Hero npc, Tools.HeartTool.Tally? heart, NpcMemory? liveMemory, string recentContext, Tools.BargainTool.Tally? bargain = null, Tools.TrothTool.Tally? troth = null, Tools.TrothTool.BlessTally? bless = null, Tools.QuestTool.Tally? quest = null)
         {
             if (call.Name == Tools.HeartTool.MoveHeart)
                 return Task.FromResult(ResolveHeartShift(call, npc, heart));
@@ -250,6 +259,18 @@ namespace ImmersiveAI
 
             if (call.Name == Tools.TrothTool.BlessMarriage)
                 return Task.FromResult(ResolveBlessLay(call, npc, bless));
+
+            if (call.Name == Tools.QuestTool.AcceptQuest)
+            {
+                NotifyActivity(npc, call);
+                return Task.FromResult(ResolveAcceptQuest(call, npc, quest));
+            }
+
+            if (call.Name == Tools.QuestTool.ReportQuest)
+            {
+                NotifyActivity(npc, call);
+                return Task.FromResult(ResolveReportQuest(call, npc, quest));
+            }
 
             NotifyActivity(npc, call);
             if (call.Name == Tools.WebWisdom.SeekWisdom)
@@ -669,6 +690,8 @@ namespace ImmersiveAI
                     case Tools.ChronicleTool.RecallBattle: doing = $"{name} turns the chronicle's pages…{detail}"; break;
                     case Tools.NuptialTool.RecallWedding: doing = $"{name} remembers the wedding day…{detail}"; break;
                     case Tools.CradleTool.RecallBirth: doing = $"{name} remembers the child's coming…{detail}"; break;
+                    case Tools.QuestTool.AcceptQuest: doing = $"{name} formally hands over the task…"; break;
+                    case Tools.QuestTool.ReportQuest: doing = $"{name} receives the completed task…"; break;
                     case Tools.WorldRecall.RecallPerson:
                     case Tools.WorldRecall.RecallPlace:
                     case Tools.WorldRecall.RecallClan:
@@ -848,6 +871,11 @@ namespace ImmersiveAI
             CampaignEvents.OnPlayerBattleEndEvent.AddNonSerializedListener(this, OnPlayerBattleEnded);
             CampaignEvents.MapEventEnded.AddNonSerializedListener(this, OnMapEventEndedForChronicle);
 
+            // Travel orientation and spatial displacement tracking (vector displacement, compass direction & milestones)
+            CampaignEvents.SettlementEntered.AddNonSerializedListener(this, Personas.TravelOrientationTracker.OnSettlementEntered);
+            CampaignEvents.MapEventEnded.AddNonSerializedListener(this, Personas.TravelOrientationTracker.OnMapEventEnded);
+            CampaignEvents.OnSiegeEventEndedEvent.AddNonSerializedListener(this, Personas.TravelOrientationTracker.OnSiegeEventEnded);
+
             // The wedding chronicle (see the Weddings partial). BeforeHeroesMarried fires from
             // inside MarriageAction with the spouses already set but BEFORE the clan change that
             // sweeps a noble bride out of her settlement — so the day's facts are captured there,
@@ -873,6 +901,9 @@ namespace ImmersiveAI
             CampaignEvents.OnPrisonerDonatedToSettlementEvent.AddNonSerializedListener(this, OnPrisonerDonatedForJourney);
             CampaignEvents.OnQuestStartedEvent.AddNonSerializedListener(this, OnQuestStartedForJourney);
             CampaignEvents.OnQuestCompletedEvent.AddNonSerializedListener(this, OnQuestCompletedForJourney);
+
+            // Sentiment & Debts of Honor (releasing prisoners & battlefield mercy)
+            CampaignEvents.HeroPrisonerReleased.AddNonSerializedListener(this, OnHeroPrisonerReleasedForSentiment);
         }
 
         // A conversation just closed. If it never became recorded beats (no free chat, no accepted
@@ -1022,6 +1053,7 @@ namespace ImmersiveAI
             LoadWeddingLedger();
             LoadBirthLedger();
             LoadNightLedger();
+            LoadSentimentLedger();
 
             // The world's nightly roll steps aside for the player's own marriages only while this
             // hook says so, and only while the feature is truly awake.
@@ -1643,6 +1675,9 @@ namespace ImmersiveAI
             var troth = bless == null && CanTendTroth(npc) ? new Tools.TrothTool.Tally() : null;
             if (troth != null) await EnsureCourtshipReadyAsync(npc).ConfigureAwait(false);
 
+            // Native Quest / Issue dialogue bridge tally
+            var quest = CanBridgeQuests(npc) ? new Tools.QuestTool.Tally() : null;
+
             var ctx = BuildContext(npc, situationOverride, bargainRides: bargain != null,
                 trothRides: troth != null, blessBride: bless?.Bride);
             var memory = ctx.Memory;
@@ -1655,8 +1690,10 @@ namespace ImmersiveAI
             // The live memory rides along so a mid-reply hand upon it (a misgiving set down, a
             // courtship step) lands in the same instance this turn will record into and save —
             // the end-of-exchange save can never clobber it.
-            var rawReply = await CompleteSpokenAsync(messages, npc, heart, memory, bargain, troth, bless).ConfigureAwait(false);
+            var rawReply = await CompleteSpokenAsync(messages, npc, heart, memory, bargain, troth, bless, quest).ConfigureAwait(false);
             var reply = string.IsNullOrWhiteSpace(rawReply) ? "..." : rawReply.Trim();
+
+            DispatchQuestOutcomes(quest);
 
             // How the exchange moved her heart. In the tool shape she moves it herself mid-reply
             // (move_heart, already applied) — but only a call that actually CAME counts as weighed:
@@ -1827,18 +1864,86 @@ namespace ImmersiveAI
             catch { return string.Empty; }
         }
 
-        // Folds the NPC's own felt shift into the real game standing. They set it themselves, in
-        // character, and what the player is shown is the FELT number — how much the moment moved that
-        // heart — even when the standing is already pinned at the -100..100 rail (a soul at the deepest
-        // love can still be warmed; the rail just has nowhere left to move, like ChatAi's impact line).
-        // Must run on the game thread (touches campaign state and UI); RespondAsync calls it from
-        // inside the main-thread dispatch. Best-effort.
-        private void ApplyRelationShift(Hero npc, int shift)
+        private SentimentLedger? _sentimentLedger;
+
+        private void LoadSentimentLedger()
+        {
+            try { _sentimentLedger = SentimentLedger.Load(NpcPaths.CampaignRoot); }
+            catch { _sentimentLedger = null; }
+        }
+
+        internal static string SentimentsBlockFor(Hero npc) =>
+            Current?._sentimentLedger?.DescribeSentimentsFor(npc) ?? string.Empty;
+
+        private void OnHeroPrisonerReleasedForSentiment(Hero prisoner, PartyBase party, IFaction capturerFaction, EndCaptivityDetail detail, bool isFree)
+        {
+            try
+            {
+                if (prisoner == null || prisoner == Hero.MainHero) return;
+                var player = Hero.MainHero;
+                if (player == null) return;
+
+                bool releasedByPlayer = (party != null && party == PartyBase.MainParty)
+                    || (capturerFaction != null && capturerFaction == player.MapFaction);
+
+                if (releasedByPlayer)
+                {
+                    bool isBattleMercy = detail == EndCaptivityDetail.ReleasedAfterBattle;
+                    var type = isBattleMercy ? SentimentType.BattlefieldMercy : SentimentType.FreedFromCaptivity;
+
+                    // Trait-aware perception of mercy: calculating/suspicious lords suspect ulterior motives
+                    int honor = prisoner.GetTraitLevel(DefaultTraits.Honor);
+                    int calculating = prisoner.GetTraitLevel(DefaultTraits.Calculating);
+                    bool isSuspicious = calculating > 0 || honor < 0;
+
+                    string desc;
+                    if (isBattleMercy)
+                    {
+                        desc = isSuspicious
+                            ? "spared me upon the battlefield without ransom; though I still weigh what subtle scheme or play for influence lies behind such mercy, I walk free by their hand"
+                            : "spared me upon the battlefield with chivalric honor and granted me freedom without bonds";
+                    }
+                    else
+                    {
+                        desc = isSuspicious
+                            ? "granted me release from captivity; I take my freedom, though I keep my guard up"
+                            : "granted me release and freedom from captivity with true honor";
+                    }
+
+                    _sentimentLedger?.RecordEvent(new SentimentEvent
+                    {
+                        HeroId = prisoner.StringId,
+                        Type = type,
+                        IsGrudge = false,
+                        Title = isBattleMercy ? "Battlefield Mercy" : "Freed from Captivity",
+                        Description = desc,
+                        GameDay = CampaignTime.Now.ToDays,
+                        DateText = CampaignTime.Now.ToString(),
+                        PlaceName = prisoner.CurrentSettlement?.Name?.ToString() ?? string.Empty,
+                        Weight = 4
+                    }, NpcPaths.CampaignRoot);
+
+                    // Note: Numerical relation shift is handled natively by the Bannerlord game engine;
+                    // IA records the lived memory and psychological impression for dialogue.
+                }
+            }
+            catch { /* best-effort sentiment recording */ }
+        }
+
+        // Folds the NPC's own felt shift into the real game standing.
+        private void ApplyRelationShift(Hero npc, int shift, bool isEpic = false)
         {
             try
             {
                 var player = Hero.MainHero;
                 if (npc == null || player == null || shift == 0) return;
+
+                int effectiveShift = _sentimentLedger != null
+                    ? _sentimentLedger.GetEffectiveShift(npc, shift, CampaignTime.Now.ToDays, _config, isEpic)
+                    : shift;
+
+                if (effectiveShift == 0) return;
+                shift = effectiveShift;
 
                 int before = npc.GetRelation(player);
                 int target = Math.Max(-100, Math.Min(100, before + shift));
@@ -3310,6 +3415,7 @@ namespace ImmersiveAI
             // The bargain's whisper is keyed to the caller's tally (the live reply trunk alone), so
             // whisper and tool always ride together — a letter or a greeting never speaks of it.
             persona.CanStrikeBargain = bargainRides;
+            persona.CanBridgeQuests = CanBridgeQuests(npc);
             // The troth's and the blessing's whispers ride the same tally-keyed way; the ROAD
             // section itself rides every sheet while a road is walked (a betrothed soul writing a
             // letter knows she is betrothed), tool or no tool.

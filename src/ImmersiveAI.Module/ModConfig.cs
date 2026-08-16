@@ -212,6 +212,18 @@ namespace ImmersiveAI
         /// feeling is gathered is shaped by <see cref="RelationshipChangesViaTool"/>.</summary>
         public bool EnableRelationshipChanges { get; set; } = true;
 
+        /// <summary>Caps daily relation gain from casual dialogue to prevent spamming/farming.</summary>
+        public bool EnableDailyRelationCap { get; set; } = true;
+
+        /// <summary>Maximum daily relation points an NPC can gain from routine dialogue alone (1..10).</summary>
+        public int DailyDialogueRelationCap { get; set; } = 3;
+
+        /// <summary>Odds ratio threshold (enemy vs our forces) to qualify as a desperate epic battle.</summary>
+        public float EpicBattleOddsRatio { get; set; } = 2.0f;
+
+        /// <summary>Enables skepticism and guarded defense for hostile lords and enemies.</summary>
+        public bool EnableSentimentDefense { get; set; } = true;
+
         /// <summary>When true (and the backend can carry tools), the NPC moves their own standing
         /// mid-reply through the same native tool channel the recalls ride (move_heart) — one call
         /// per exchange instead of two, and a greeting, a reaching-out, or a letter can move the
@@ -645,6 +657,11 @@ namespace ImmersiveAI
         /// wedding is the real game marriage with all its consequences. Souls with a real story are
         /// seeded once from it, so a love already spoken is honored. Default on.</summary>
         public bool EnableConversationMarriage { get; set; } = true;
+
+        /// <summary>Native Quest & Issue Dialogue Bridge: allows discovering, taking on, and reporting
+        /// native Bannerlord issues and quests directly through immersive natural language conversation
+        /// with village notables, merchants, and lords, without leaving dialogue for rigid menus. Default on.</summary>
+        public bool EnableQuestDialogueBridge { get; set; } = true;
 
         /// <summary>When true (the default — vanilla forbids it, but here it is the point: the first
         /// true bonds are with companions), a wanderer riding as the player's companion can be wed

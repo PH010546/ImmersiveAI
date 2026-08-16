@@ -97,6 +97,7 @@ namespace ImmersiveAI.Personas
                 sentences.Add("No one has yet taken this burden from me.");
                 if (!string.IsNullOrWhiteSpace(ask))
                     sentences.Add($"Were one willing and able to see it done, this is what I would ask of them: “{ask}”");
+                sentences.Add("If the traveler agrees in their words to take this burden upon themselves (or says they accept/will help), I gladly accept their aid and I MUST call accept_quest in that very breath to hand the task over.");
             }
         }
 
@@ -122,6 +123,8 @@ namespace ImmersiveAI.Personas
                     ? "The time for it is nearly spent."
                     : $"Some {(int)Math.Round(days)} days remain before the chance is lost.");
             });
+
+            sentences.Add("If the traveler has fulfilled what was asked and comes to report, I acknowledge their success with gratitude and call report_quest.");
         }
 
         // Quests this hero gave that are not the issue's own — each named with its latest word.
