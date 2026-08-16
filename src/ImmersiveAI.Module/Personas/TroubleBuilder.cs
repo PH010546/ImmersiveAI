@@ -19,16 +19,19 @@ namespace ImmersiveAI.Personas
     /// </summary>
     public static class TroubleBuilder
     {
+        private static readonly System.Reflection.MethodInfo? CanPlayerTakeQuestConditionsMethod =
+            typeof(IssueBase).GetMethod("CanPlayerTakeQuestConditions", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
+
         /// <summary>The speaker's own trouble and given quests as a flowing paragraph, or empty
         /// when nothing weighs on them. <paramref name="partner"/> only shapes the phrasing (the
         /// taker of a quest is always the player, named outright even when speaking to another).</summary>
         public static string Build(Hero speaker, Hero partner)
         {
-            try { return BuildInner(speaker); }
+            try { return BuildInner(speaker, partner); }
             catch { return string.Empty; }
         }
 
-        private static string BuildInner(Hero speaker)
+        private static string BuildInner(Hero speaker, Hero partner)
         {
             if (speaker == null || Campaign.Current == null) return string.Empty;
 
@@ -41,7 +44,7 @@ namespace ImmersiveAI.Personas
             });
 
             if (issue != null)
-                DescribeOwnIssue(issue, sentences);
+                DescribeOwnIssue(issue, sentences, speaker, partner);
             else
                 // A notable with no issue says so to himself, so "do you need any work?" is met with
                 // honest small labor or a plain no — never an invented quest-shaped promise.
@@ -61,7 +64,7 @@ namespace ImmersiveAI.Personas
         }
 
         // The trouble itself, in the giver's own words, and where its resolving presently stands.
-        private static void DescribeOwnIssue(IssueBase issue, List<string> sentences)
+        private static void DescribeOwnIssue(IssueBase issue, List<string> sentences, Hero speaker, Hero partner)
         {
             string title = null, brief = null, ask = null;
             Try(() => title = TidingsFormatter.StripMarkup(issue.Title?.ToString()));
@@ -73,7 +76,7 @@ namespace ImmersiveAI.Personas
                 : $"A trouble weighs on me in these days — the matter of “{title.TrimEnd('.')}”.");
 
             if (!string.IsNullOrWhiteSpace(brief))
-                sentences.Add($"When any ask after it, this is how I tell it: “{brief}”");
+                sentences.Add($"The core truth of the situation: {brief}");
 
             var player = Hero.MainHero?.Name?.ToString() ?? "someone";
 
@@ -81,7 +84,7 @@ namespace ImmersiveAI.Personas
             {
                 sentences.Add($"{player} has taken this burden up at my asking.");
                 if (!string.IsNullOrWhiteSpace(ask))
-                    sentences.Add($"What I asked of them, in my own words: “{ask}”");
+                    sentences.Add($"What was asked of them: {ask}");
                 Try(() => DescribeQuestProgress(issue.IssueQuest, sentences));
             }
             else if (issue.IsSolvingWithAlternative)
@@ -96,8 +99,27 @@ namespace ImmersiveAI.Personas
             {
                 sentences.Add("No one has yet taken this burden from me.");
                 if (!string.IsNullOrWhiteSpace(ask))
-                    sentences.Add($"Were one willing and able to see it done, this is what I would ask of them: “{ask}”");
-                sentences.Add("If the traveler agrees in their words to take this burden upon themselves (or says they accept/will help), I gladly accept their aid and I MUST call accept_quest in that very breath to hand the task over.");
+                    sentences.Add($"What is needed to resolve it: {ask}");
+
+                // Soft condition awareness in the discovery phase (solo traveler / small party)
+                int flagsInt = 0;
+                Try(() =>
+                {
+                    if (CanPlayerTakeQuestConditionsMethod != null && Hero.MainHero != null)
+                    {
+                        object[] args = new object[] { Hero.MainHero, null!, null!, null!, 0 };
+                        CanPlayerTakeQuestConditionsMethod.Invoke(issue, args);
+                        if (args[1] != null) flagsInt = Convert.ToInt32(args[1]);
+                    }
+                });
+
+                if ((flagsInt & 256) != 0) // PreconditionFlagNotEnoughTroops
+                {
+                    sentences.Add("Note on who stands before me: they ride with very few men or travel alone for a dangerous task. When they merely inquire about general local troubles or ask after the village, I should mention the trouble with realistic hesitation and doubt ('We have a problem with bandits, but it is far too perilous for a lone traveler...'), withholding the full proposal until they press further or show confidence.");
+                }
+
+                sentences.Add("Important: I do NOT recite these briefing lines word-for-word like a stiff scripted herald, nor do I use subservient 'my lord' formulas unless my station and relationship truly call for it. I rephrase and explain the trouble in my own authentic voice, vocabulary, and social standing toward who stands before me (e.g. a gruff village headman, a shrewd merchant, or a noble).");
+                sentences.Add("Once the traveler clearly agrees in their words to take this burden upon themselves (or confirms they will handle it), I accept their aid and I MUST call accept_quest in that very reply to seal the agreement.");
             }
         }
 
