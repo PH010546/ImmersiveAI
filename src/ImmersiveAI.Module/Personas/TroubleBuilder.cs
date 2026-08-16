@@ -98,6 +98,10 @@ namespace ImmersiveAI.Personas
             Try(() => desc = TidingsFormatter.StripMarkup(issue.Description?.ToString()));
             Try(() => brief = TidingsFormatter.StripMarkup(issue.IssueBriefByIssueGiver?.ToString()));
             Try(() => ask = TidingsFormatter.StripMarkup(issue.IssueQuestSolutionExplanationByIssueGiver?.ToString()));
+            if (string.IsNullOrWhiteSpace(ask))
+                Try(() => ask = TidingsFormatter.StripMarkup(issue.IssueAlternativeSolutionExplanationByIssueGiver?.ToString()));
+            if (string.IsNullOrWhiteSpace(ask))
+                Try(() => ask = TidingsFormatter.StripMarkup(issue.IssueAcceptByPlayer?.ToString()));
 
             sentences.Add(string.IsNullOrWhiteSpace(title)
                 ? "A trouble weighs on me in these days."
