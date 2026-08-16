@@ -167,8 +167,24 @@ namespace ImmersiveAI.Personas
         }
 
         /// <summary>
-        /// Estimates travel distance in leagues/miles from 2D coordinates.
+        /// Estimates travel time in natural, lore-friendly marching/riding terms based on party speed.
         /// </summary>
+        public static string EstimateTravelTime(CampaignVec2 from, CampaignVec2 to)
+        {
+            float len = from.Distance(to);
+            float speed = MobileParty.MainParty?.Speed ?? 5.0f;
+            if (speed <= 0.5f) speed = 5.0f;
+            float hours = len / speed;
+            if (hours < 10f)
+                return "a few hours' ride";
+            if (hours < 18f)
+                return "about half a day's march";
+            if (hours < 36f)
+                return "about a day's ride";
+            int days = (int)Math.Round(hours / 24f);
+            return days <= 1 ? "about a day's ride" : $"about {days} days' march";
+        }
+
         public static int EstimateMiles(CampaignVec2 from, CampaignVec2 to)
         {
             float len = from.Distance(to);
