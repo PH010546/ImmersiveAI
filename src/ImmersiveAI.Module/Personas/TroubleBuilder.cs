@@ -36,6 +36,11 @@ namespace ImmersiveAI.Personas
             if (speaker == null || Campaign.Current == null) return string.Empty;
 
             var sentences = new List<string>();
+
+            // Module 1: Recent unacknowledged deeds completed on the map since last conversation
+            Try(() => AppendRecentDeedsFact(speaker, partner, sentences));
+
+            // Module 2: Active trouble or current quest progress
             IssueBase issue = null;
             Try(() =>
             {
@@ -61,6 +66,25 @@ namespace ImmersiveAI.Personas
             Try(() => DescribeGivenQuests(speaker, issue, sentences));
 
             return sentences.Count == 0 ? string.Empty : string.Join(" ", sentences);
+        }
+
+        // Appends recent victory/settlement deeds completed since our last conversation.
+        private static void AppendRecentDeedsFact(Hero speaker, Hero partner, List<string> sentences)
+        {
+            if (speaker == null) return;
+            double lastTalkDay = 0;
+            Try(() =>
+            {
+                var chatBehavior = Campaign.Current?.GetCampaignBehavior<ImmersiveChatBehavior>();
+                var mem = chatBehavior?.LoadMemory(speaker);
+                if (mem != null) lastTalkDay = mem.LastConversationGameDay;
+            });
+
+            if (Tools.QuestCompletionTracker.TryGetRecentDeed(speaker.StringId, lastTalkDay, out string deedTitle))
+            {
+                var player = partner?.Name?.ToString() ?? Hero.MainHero?.Name?.ToString() ?? "someone";
+                sentences.Add($"Recent deed since we last spoke: The matter of “{deedTitle}” was successfully resolved on the map by {player}. The threat is gone and our settlement enjoys peace thanks to their aid.");
+            }
         }
 
         // The trouble itself, in the giver's own words, and where its resolving presently stands.
@@ -165,11 +189,12 @@ namespace ImmersiveAI.Personas
 
             if (target > 0 && current < target)
             {
-                sentences.Add($"FACTUAL REALITY: The task is UNFINISHED ({current} of {target} completed). Local scouts and villagers confirm the bandits/enemies are STILL OUT THERE and actively raiding. If the traveler claims they have already finished it or asks for reward, I MUST flatly reject their claim (e.g. scoff, point out that scouts just spotted them in the hills, and tell them to go actually finish the job), and I MUST NEVER pretend to pay them or celebrate.");
+                string taskLabel = !string.IsNullOrWhiteSpace(progressText) ? progressText : $"{current} of {target}";
+                sentences.Add($"FACTUAL REALITY: The task is UNFINISHED ({taskLabel} completed). The required items or deeds have NOT yet been fulfilled or delivered. If the traveler claims they have finished it or asks for rewards, you MUST refuse their claim and never pay or celebrate, speaking strictly according to who you are and your standing.");
             }
             else if (target > 0 && current >= target)
             {
-                sentences.Add($"FACTUAL REALITY: The required map deeds have been verified completed ({current} of {target} achieved).");
+                sentences.Add($"FACTUAL REALITY: The required map deeds or item deliveries have been verified fulfilled ({current} of {target} achieved).");
             }
             else
             {
