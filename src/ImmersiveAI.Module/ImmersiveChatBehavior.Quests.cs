@@ -183,6 +183,29 @@ namespace ImmersiveAI
                 }
             }
 
+            // 1b. Check delivery item/herd inventory count if applicable
+            var countItemMethod = questType.GetMethod("GetAvailableRequestedItemCountOnPlayer", flags);
+            var herdTypeField = questType.GetField("_herdTypeToDeliver", flags);
+            var animalCountField = questType.GetField("_animalCountToDeliver", flags);
+            if (countItemMethod != null && herdTypeField != null && animalCountField != null)
+            {
+                try
+                {
+                    var item = herdTypeField.GetValue(activeQuest) as ItemObject;
+                    int required = Convert.ToInt32(animalCountField.GetValue(activeQuest));
+                    int available = Convert.ToInt32(countItemMethod.Invoke(activeQuest, new object[] { item }));
+                    if (available < required)
+                    {
+                        ModLog.Info($"[QuestBridge] Refusing report_quest for {npc.Name}: Player only has {available}/{required} of {item?.Name}.");
+                        return $"You do not have all of the required {required} {item?.Name} in your possession (only {available} available). I cannot accept an incomplete delivery.";
+                    }
+                }
+                catch (Exception ex)
+                {
+                    ModLog.Warn($"[QuestBridge] Error checking delivery item count: {ex.Message}");
+                }
+            }
+
             // 2. Check if the quest is an on-map combat quest with undefeated party targets
             var destroyedCountField = questType.GetField("_destroyedPartyCount", flags);
             var totalCountField = questType.GetField("_totalPartyCount", flags);
@@ -202,7 +225,9 @@ namespace ImmersiveAI
             }
 
             // 3. Find genuine native turn-in consequence/finish method
-            var finishMethod = questType.GetMethod("FinishQuestSuccess", flags)
+            var finishMethod = questType.GetMethod("DeliverHerdOnConsequence", flags)
+                ?? questType.GetMethod("DeliverProductsOnConsequence", flags)
+                ?? questType.GetMethod("FinishQuestSuccess", flags)
                 ?? questType.GetMethod("FinishQuestSuccess1", flags)
                 ?? questType.GetMethod("SuccessConsequences", flags)
                 ?? questType.GetMethod("QuestSuccessConsequences", flags);
