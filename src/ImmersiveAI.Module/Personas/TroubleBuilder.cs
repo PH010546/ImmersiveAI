@@ -191,7 +191,7 @@ namespace ImmersiveAI.Personas
                     sentences.Add("Note on who stands before me: they ride with very few men or travel alone for a dangerous task. When they merely inquire about general local troubles or ask after the village, I should mention the trouble with realistic hesitation and doubt ('We have a problem with bandits, but it is far too perilous for a lone traveler...'), withholding the full proposal until they press further or show confidence.");
                 }
 
-                sentences.Add("Important: Address the traveler strictly according to who stands before you, their true station, and your relationship. The traveler may choose to undertake this task personally or resolve it through their people. When the traveler inquires about work, troubles, rumors, or how to help, paraphrase the core trouble, destination, and goods naturally in your own authentic voice according to your personality, allowing them to handle it directly or delegate as they see fit, without verbatim reciting canned script formulas (do not unprompted dump the proposal during casual greetings).");
+                sentences.Add("Important: Address the traveler strictly according to who stands before you, their true station, and your relationship. Opening Etiquette: When meeting the traveler or opening a conversation, greet them naturally according to your station; do not abruptly blurt out business or pending tasks on Turn 1 before the traveler introduces themselves or states their business. When the traveler inquires about work, troubles, rumors, or how to help, paraphrase the core trouble, destination, and goods naturally in your own authentic voice according to your personality, allowing them to handle it directly or delegate as they see fit, without verbatim reciting canned script formulas.");
                 sentences.Add("Once the traveler clearly commits, agrees, or confirms in their words that they will undertake the task (in whatever phrasing or language they express acceptance or willingness to take it on), I accept their aid and I MUST call accept_quest in that very reply to seal the agreement and deliver the task. (Do NOT call accept_quest when they are merely inquiring, discussing ability, or asking for details).");
             }
         }
@@ -295,7 +295,8 @@ namespace ImmersiveAI.Personas
                 string cargoDesc = herdType != null ? (count > 0 ? $"{count} {herdType.Name}" : $"{herdType.Name}") : "the promised delivery";
 
                 sentences.Add($"Expected delivery: I am awaiting a delivery of {cargoDesc} sent by {giverName} of {giverHome}, which {player} agreed to bring to me.");
-                sentences.Add($"Important: When {player} presents the delivery or states they have brought the {cargoDesc} on behalf of {giverName}, I inspect and receive the goods and I MUST call report_quest to formally accept the delivery and conclude the task. (If they speak casually of other matters, converse normally).");
+                sentences.Add("Opening Etiquette: When meeting the traveler or opening a conversation, greet them naturally according to your station; do not abruptly blurt out business, deliveries, or pending tasks on Turn 1 before the traveler introduces themselves or states their business.");
+                sentences.Add($"Important: When {player} presents the delivery or explicitly states they have brought the {cargoDesc} on behalf of {giverName}, I inspect and receive the goods and I MUST call report_quest to formally accept the delivery and conclude the task. (If they speak of other matters, converse normally).");
             }
         }
 
