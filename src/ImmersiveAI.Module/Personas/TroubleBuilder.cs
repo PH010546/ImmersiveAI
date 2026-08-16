@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using ImmersiveAI.Core.Prompts;
 using TaleWorlds.CampaignSystem;
 using TaleWorlds.CampaignSystem.Issues;
+using TaleWorlds.CampaignSystem.Settlements;
 using TaleWorlds.Core;
 
 namespace ImmersiveAI.Personas
@@ -94,7 +95,7 @@ namespace ImmersiveAI.Personas
         // rather than literal dialogue quotes, directing the LLM to paraphrase in its own persona across all languages.
         private static void DescribeOwnIssue(IssueBase issue, List<string> sentences, Hero speaker, Hero partner)
         {
-            string title = null, desc = null, brief = null, questAsk = null, altAsk = null, goodName = null;
+            string title = null, desc = null, brief = null, questAsk = null, altAsk = null, goodName = null, targetSettlementName = null, targetDir = null;
             int goodCount = 0;
             Try(() => title = TidingsFormatter.StripMarkup(issue.Title?.ToString()));
             Try(() => desc = TidingsFormatter.StripMarkup(issue.Description?.ToString()));
@@ -115,6 +116,17 @@ namespace ImmersiveAI.Personas
                     goodName = itemObj.Name?.ToString();
                     var countProp = type.GetProperty("RawMaterialCountToBeDelivered", flags) ?? type.GetProperty("RequestedTradeGoodAmount", flags) ?? type.GetProperty("RequestedItemAmount", flags);
                     if (countProp != null) goodCount = Convert.ToInt32(countProp.GetValue(issue, null));
+                }
+
+                var targetSettlement = (type.GetField("_targetSettlement", flags) ?? type.GetField("_destinationSettlement", flags))?.GetValue(issue) as Settlement;
+                if (targetSettlement != null)
+                {
+                    targetSettlementName = targetSettlement.Name?.ToString();
+                    var speakerPos = speaker?.CurrentSettlement?.Position ?? Hero.MainHero?.CurrentSettlement?.Position;
+                    if (speakerPos.HasValue && (speakerPos.Value.X != 0f || speakerPos.Value.Y != 0f))
+                    {
+                        targetDir = TravelOrientationTracker.GetCardinalDirection(speakerPos.Value, targetSettlement.Position);
+                    }
                 }
             });
 
@@ -155,6 +167,9 @@ namespace ImmersiveAI.Personas
 
                 if (!string.IsNullOrWhiteSpace(goodName))
                     sentences.Add(goodCount > 0 ? $"Specific trade goods to deliver: {goodCount} {goodName}" : $"Specific trade goods to deliver: {goodName}");
+
+                if (!string.IsNullOrWhiteSpace(targetSettlementName) && !string.IsNullOrWhiteSpace(targetDir))
+                    sentences.Add($"Target destination location: {targetSettlementName} (lies to the {targetDir} of where we stand).");
 
                 // Soft condition awareness in the discovery phase (solo traveler / small party)
                 int flagsInt = 0;
