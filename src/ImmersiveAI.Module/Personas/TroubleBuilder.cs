@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using ImmersiveAI.Core.Prompts;
 using TaleWorlds.CampaignSystem;
 using TaleWorlds.CampaignSystem.Issues;
+using TaleWorlds.Core;
 
 namespace ImmersiveAI.Personas
 {
@@ -93,7 +94,8 @@ namespace ImmersiveAI.Personas
         // rather than literal dialogue quotes, directing the LLM to paraphrase in its own persona across all languages.
         private static void DescribeOwnIssue(IssueBase issue, List<string> sentences, Hero speaker, Hero partner)
         {
-            string title = null, desc = null, brief = null, questAsk = null, altAsk = null;
+            string title = null, desc = null, brief = null, questAsk = null, altAsk = null, goodName = null;
+            int goodCount = 0;
             Try(() => title = TidingsFormatter.StripMarkup(issue.Title?.ToString()));
             Try(() => desc = TidingsFormatter.StripMarkup(issue.Description?.ToString()));
             Try(() => brief = TidingsFormatter.StripMarkup(issue.IssueBriefByIssueGiver?.ToString()));
@@ -101,6 +103,20 @@ namespace ImmersiveAI.Personas
             Try(() => altAsk = TidingsFormatter.StripMarkup(issue.IssueAlternativeSolutionExplanationByIssueGiver?.ToString()));
             if (string.IsNullOrWhiteSpace(questAsk) && string.IsNullOrWhiteSpace(altAsk))
                 Try(() => questAsk = TidingsFormatter.StripMarkup(issue.IssueAcceptByPlayer?.ToString()));
+
+            // Read-only extraction of exact item/goods if present on issue
+            Try(() =>
+            {
+                var type = issue.GetType();
+                var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public;
+                var itemObj = (type.GetField("_rawMaterialsToBeDelivered", flags) ?? type.GetField("_requestedTradeGood", flags) ?? type.GetField("_requestedItem", flags))?.GetValue(issue) as ItemObject;
+                if (itemObj != null)
+                {
+                    goodName = itemObj.Name?.ToString();
+                    var countProp = type.GetProperty("RawMaterialCountToBeDelivered", flags) ?? type.GetProperty("RequestedTradeGoodAmount", flags) ?? type.GetProperty("RequestedItemAmount", flags);
+                    if (countProp != null) goodCount = Convert.ToInt32(countProp.GetValue(issue, null));
+                }
+            });
 
             sentences.Add(string.IsNullOrWhiteSpace(title)
                 ? "A trouble weighs on me in these days."
@@ -137,6 +153,9 @@ namespace ImmersiveAI.Personas
                 if (!string.IsNullOrWhiteSpace(altAsk) && !string.Equals(altAsk, desc, StringComparison.OrdinalIgnoreCase) && !string.Equals(altAsk, brief, StringComparison.OrdinalIgnoreCase) && !string.Equals(altAsk, questAsk, StringComparison.OrdinalIgnoreCase))
                     sentences.Add($"Alternative delegation or scope details: {altAsk}");
 
+                if (!string.IsNullOrWhiteSpace(goodName))
+                    sentences.Add(goodCount > 0 ? $"Specific trade goods to deliver: {goodCount} {goodName}" : $"Specific trade goods to deliver: {goodName}");
+
                 // Soft condition awareness in the discovery phase (solo traveler / small party)
                 int flagsInt = 0;
                 Try(() =>
@@ -155,7 +174,7 @@ namespace ImmersiveAI.Personas
                 }
 
                 sentences.Add("Important: Address the traveler strictly according to who stands before you, their true station, and your relationship. The traveler may choose to undertake this task personally or resolve it through their people. When the traveler inquires about work, troubles, rumors, or how to help, paraphrase the core trouble, destination, and goods naturally in your own authentic voice according to your personality, allowing them to handle it directly or delegate as they see fit, without verbatim reciting canned script formulas (do not unprompted dump the proposal during casual greetings).");
-                sentences.Add("Once the traveler clearly commits or explicitly confirms in their words to take this burden upon themselves (e.g. 'I will handle it', 'Leave it to me'), I accept their aid and I MUST call accept_quest in that very reply to seal the agreement. (Do NOT call accept_quest when they are merely inquiring, discussing ability, or asking for details).");
+                sentences.Add("Once the traveler clearly commits, agrees, or confirms in their words that they will undertake the task (in whatever phrasing or language they express acceptance or willingness to take it on), I accept their aid and I MUST call accept_quest in that very reply to seal the agreement and deliver the task. (Do NOT call accept_quest when they are merely inquiring, discussing ability, or asking for details).");
             }
         }
 
