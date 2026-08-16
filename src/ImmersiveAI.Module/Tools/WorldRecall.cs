@@ -50,9 +50,9 @@ namespace ImmersiveAI.Tools
                 "for this before ever speaking in numbers of my own men."),
 
             new ToolDefinition(RecallPlace,
-                "Call to mind what is known of a town, castle, or village — who holds it, whose realm it lies " +
-                "in, its walls and garrison, and how it fares. Reach for this when a place is spoken of and " +
-                "my memory of it is dim, and always before speaking in numbers of its defenses.",
+                "Call to mind what is known of a town, castle, or village — its geographical compass direction " +
+                "and distance from where I stand, who holds it, whose realm it lies in, its walls and garrison, " +
+                "and how it fares. Reach for this whenever a place, its direction, or its distance is asked or spoken of.",
                 new[] { new ToolParameter("name", "The place's name, as best I know it.") }),
 
             new ToolDefinition(RecallClan,
@@ -401,6 +401,19 @@ namespace ImmersiveAI.Tools
                 var culture = s.Culture?.Name?.ToString();
                 if (!string.IsNullOrWhiteSpace(culture)) line += $" of {culture} lands";
                 lines.Add(line + ".");
+            });
+
+            // Live geographical bearing and distance relative to the asker's current location
+            Try(() =>
+            {
+                var askerPos = asker?.CurrentSettlement?.Position2D ?? asker?.PartyBelongedTo?.Position2D ?? Hero.MainHero?.CurrentSettlement?.Position2D ?? Hero.MainHero?.PartyBelongedTo?.Position2D;
+                if (askerPos.HasValue && (askerPos.Value.X != 0f || askerPos.Value.Y != 0f))
+                {
+                    var dir = Personas.TravelOrientationTracker.GetCardinalDirection(askerPos.Value, s.Position2D);
+                    var miles = Personas.TravelOrientationTracker.EstimateMiles(askerPos.Value, s.Position2D);
+                    var hereName = asker?.CurrentSettlement?.Name?.ToString() ?? Hero.MainHero?.CurrentSettlement?.Name?.ToString() ?? "here";
+                    lines.Add($"From where we stand ({hereName}), it lies to the {dir} (some {miles} miles away).");
+                }
             });
 
             Try(() =>
