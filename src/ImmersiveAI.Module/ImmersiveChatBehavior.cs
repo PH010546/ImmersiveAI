@@ -1075,15 +1075,15 @@ namespace ImmersiveAI
                 // Greet state, recap is in -> the NPC delivers it, then we fall into the menu.
                 // Registered before the "still recalling" line so it wins when the condition holds.
                 starter.AddDialogLine("immersiveai_recap", "immersiveai_greet", "immersiveai_input",
-                    "{=!}{" + RecapVar + "}", () => _recapReady, null);
+                    "{=!}{" + RecapVar + "}", () => _recapReady, null, 300);
 
                 // Greet state, still recalling -> holding line and an offer to wait.
                 starter.AddDialogLine("immersiveai_recall", "immersiveai_greet", "immersiveai_recall_wait",
-                    "{=ImmersiveAI_Recall}(gathers their thoughts...)", () => !_recapReady, null);
+                    "{=ImmersiveAI_Recall}(gathers their thoughts...)", () => !_recapReady, null, 300);
 
                 // Re-checks the greet state; loops until the recap arrives.
                 starter.AddPlayerLine("immersiveai_recall_wait", "immersiveai_recall_wait", "immersiveai_greet",
-                    "{=ImmersiveAI_Wait}(wait for them to answer)", null, null, 110);
+                    "{=ImmersiveAI_Wait}(wait for them to answer)", null, null, 300);
             }
             else
             {
@@ -1104,11 +1104,11 @@ namespace ImmersiveAI
                 "{=ImmersiveAI_Update}Reflect on all we have shared, and settle it into your memory.",
                 null, OnMemoryUpdateRequested, 108);
             starter.AddDialogLine("immersiveai_update_done", "immersiveai_updating", "immersiveai_input",
-                "{=!}{" + UpdateVar + "}", () => _updateReady, null);
+                "{=!}{" + UpdateVar + "}", () => _updateReady, null, 300);
             starter.AddDialogLine("immersiveai_update_wait", "immersiveai_updating", "immersiveai_update_hold",
-                "{=ImmersiveAI_Reflecting}(reflects on all you have shared...)", () => !_updateReady, null);
+                "{=ImmersiveAI_Reflecting}(reflects on all you have shared...)", () => !_updateReady, null, 300);
             starter.AddPlayerLine("immersiveai_update_hold", "immersiveai_update_hold", "immersiveai_updating",
-                "{=ImmersiveAI_Wait}(wait for them to answer)", null, null, 110);
+                "{=ImmersiveAI_Wait}(wait for them to answer)", null, null, 300);
 
             // ONE window onto her whole mind (the separate situation / self / history peeks were
             // united here, 2026.07.09 — they were all just slices of this): the exact message list
@@ -1204,8 +1204,9 @@ namespace ImmersiveAI
 
             // Await state, reply is in -> show it and return to the menu.
             // Registered before the "still thinking" line so it wins when the condition holds.
+            // Priority 300: shields the private await state against any external mod (e.g. Homesteads) event hijacking.
             starter.AddDialogLine("immersiveai_reply", "immersiveai_await", "immersiveai_input",
-                "{=!}{" + ResponseVar + "}", () => _responseReady, null);
+                "{=!}{" + ResponseVar + "}", () => _responseReady, null, 300);
 
             // (RequestLeaveFromPartyEncounter lives below with the other encounter care —
             // every close_window line above must carry it, or a map-party talk ends in the
@@ -1214,11 +1215,11 @@ namespace ImmersiveAI
             // Await state, still waiting -> keep the NPC's last line on screen (re-readable while the
             // player types) with a gentle note that they are considering, instead of a bare holding line.
             starter.AddDialogLine("immersiveai_thinking", "immersiveai_await", "immersiveai_wait",
-                "{=!}{" + ThinkingVar + "}", () => !_responseReady, null);
+                "{=!}{" + ThinkingVar + "}", () => !_responseReady, null, 300);
 
             // Re-checks the await state; loops until the reply arrives.
             starter.AddPlayerLine("immersiveai_wait", "immersiveai_wait", "immersiveai_await",
-                "{=ImmersiveAI_Wait}(wait for them to answer)", null, null, 110);
+                "{=ImmersiveAI_Wait}(wait for them to answer)", null, null, 300);
 
             // (The courier menu options are added in OnSessionLaunched, not here: this runs at game
             // start, when "town"/"castle"/"village" are only presumed placeholders — their real
