@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -96,6 +96,36 @@ namespace ImmersiveAI
             catch { return new List<Hero>(); }
         }
 
+        /// <summary>
+        /// EVERY WOMAN OF THE HEARTH (2026.08.15) — his wives, and since the road forked, his
+        /// lovers too. The whole batch depends on this one list being complete: a lover who was not
+        /// in it would have no nights, so nothing to leak, so nothing for a wife to hear about, and
+        /// the entire consequence engine would be reasoning over half a household.
+        ///
+        /// Wives first, deliberately. The first wife is the official, ceremonial one and the dusk
+        /// question should read that way; the sort within each group is the season's own.
+        /// </summary>
+        /// <summary>The same roster, for the hearth side of the talk screen. Internal rather than
+        /// public: the screen is the only outside caller, and everything else must keep asking the
+        /// nights themselves.</summary>
+        internal static List<Hero> HearthRoster() => WomenOfTheHearth();
+
+        private static List<Hero> WomenOfTheHearth()
+        {
+            var women = new List<Hero>();
+            try
+            {
+                var seen = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var wife in SpousesOfPlayer())
+                    if (wife != null && seen.Add(wife.StringId)) women.Add(wife);
+                foreach (var lover in LoversOfPlayer())
+                    if (lover != null && lover.IsAlive && !lover.IsPrisoner && seen.Add(lover.StringId))
+                        women.Add(lover);
+            }
+            catch { }
+            return women;
+        }
+
         /// <summary>Which of the two could carry a child. Null when neither can, and the night is
         /// then simply a night — which is the honest answer, not an error.</summary>
         private static Hero? MotherOf(Hero partner)
@@ -159,11 +189,19 @@ namespace ImmersiveAI
                 // weighed — which is why the question reappeared after a reload and only then
                 // (the field is not persisted). The stamp now goes down only when something has
                 // truly been put to the player, and dusk keeps knocking for a few hours.
+                //
+                // AND THE CLOCK IT ALL HANGS ON IS THE SUN'S (Anton, 2026.08.15). Everything below
+                // counts in NIGHT-CYCLES — late afternoon to late afternoon — rather than in
+                // calendar days or in hours since the last night. Both of the paragraphs above
+                // survive it untouched: the evening still asks LATE and never before, and it still
+                // asks across a window of hours. What changed is only when the house becomes ready
+                // again, which is now the same hour every day instead of drifting later with every
+                // late night.
                 if (!IsWithinEveningWindow()) return;
 
-                int today = (int)CampaignTime.Now.ToDays;
-                if (_nightAskedOnDay == today) return;
-                if (_nightLedger!.IsNightSettled(CampaignTime.Now.ToDays)) return;
+                int cycle = NightCycleNow();
+                if (_nightAskedOnDay == cycle) return;
+                if (_nightLedger!.IsCycleSettled(CampaignTime.Now.ToDays, NightResetHour)) return;
 
                 HandleTheEvening();
             }
@@ -184,8 +222,34 @@ namespace ImmersiveAI
             return false;
         }
 
+        /// <summary>The hour the house is ready again — the turn a night-cycle is measured from.</summary>
+        private int NightResetHour => _config.NightDayResetHour;
+
+        /// <summary>Which night-cycle this moment falls in. Every "have we already had tonight?"
+        /// question in this file counts in these, not in calendar days: an hour after midnight
+        /// belongs to the evening it grew out of.</summary>
+        private int NightCycleNow() => NightClock.CycleOf(CampaignTime.Now.ToDays, NightResetHour);
+
         // Why a given wife cannot be gone to tonight. Empty means she can.
         private string NightBlockFor(Hero wife, out double hoursLeft)
+        {
+            var presence = PresenceBlockFor(wife, out hoursLeft);
+            if (presence.Length > 0) return presence;
+
+            // Her season, and — since 2026.08.15 — whatever she has written down about him. One
+            // call, because both are the same door and the player must never be told a half-truth
+            // about why it is shut. DuskLine returns the season's own wording unchanged, so
+            // everything downstream that reads it still works.
+            return DoorBlockFor(wife);
+        }
+
+        /// <summary>
+        /// Everything that is NOT the door: whether she is alive, free, here, reachable, and
+        /// whether the hours between nights have passed. Split out (2026.08.15) because "go to her
+        /// anyway" goes through a shut DOOR and through nothing else — a wife three weeks away is
+        /// not available to be gone to at all, and a quarrel does not suspend the clock.
+        /// </summary>
+        private string PresenceBlockFor(Hero wife, out double hoursLeft)
         {
             hoursLeft = 0;
             try
@@ -197,11 +261,6 @@ namespace ImmersiveAI
                 var settlement = Hero.MainHero?.CurrentSettlement ?? MobileParty.MainParty?.CurrentSettlement;
                 if (settlement != null && IsBehindClosedDoors(wife, settlement)) return "you cannot reach her here";
 
-                var mother = MotherOf(wife);
-                if (mother != null && !mother.IsPregnant
-                    && MoodTides.DoorIsClosed(mother.StringId, (int)CampaignTime.Now.ToDays))
-                    return "the custom of women is upon her";
-
                 double cooldown = CooldownHoursLeft();
                 if (cooldown > 0) { hoursLeft = cooldown; return $"not yet — {(int)Math.Ceiling(cooldown)} hours until you are ready"; }
 
@@ -210,16 +269,20 @@ namespace ImmersiveAI
             catch { return "not tonight"; }
         }
 
-        // How long since ANY night was spent — a man cannot be in two beds in one evening, so the
-        // cooldown is counted across the whole hearth, not per wife.
+        // Whether tonight has already been spent — across the whole hearth, because a man cannot be
+        // in two beds in one evening. Counted in CYCLES rather than in hours since (Anton,
+        // 2026.08.15): what is answered is "has there been a night since the house was last ready?",
+        // and what is counted back is the hours to the next turn, so the greyed line still tells the
+        // player a true number to wait.
         private double CooldownHoursLeft()
         {
             try
             {
                 var last = _nightLedger?.LastTogetherWithAnyone();
                 if (last == null) return 0;
-                double hoursSince = (CampaignTime.Now.ToDays - last.GameDay) * 24.0;
-                return Math.Max(0, _config.NightCooldownHours - hoursSince);
+                double now = CampaignTime.Now.ToDays;
+                if (!NightClock.SameCycle(last.GameDay, now, NightResetHour)) return 0;
+                return NightClock.HoursUntilReset(now, NightResetHour);
             }
             catch { return 0; }
         }
@@ -238,7 +301,7 @@ namespace ImmersiveAI
 
         private void HandleTheEvening()
         {
-            var wives = SpousesOfPlayer();
+            var wives = WomenOfTheHearth();
             if (wives.Count == 0) return;
 
             // Last night, if it was never answered, was a night slept alone — and it is settled as
@@ -249,19 +312,32 @@ namespace ImmersiveAI
             // Whoever can be gone to, and why the rest cannot.
             var open = new List<Hero>();
             var closedDoors = new List<Hero>();
+            var shutAgainstYou = new List<Hero>();
             foreach (var wife in wives)
             {
                 var block = NightBlockFor(wife, out _);
                 if (block.Length == 0) open.Add(wife);
                 else if (block.IndexOf("custom of women", StringComparison.Ordinal) >= 0) closedDoors.Add(wife);
+                // A door shut by her own word is a different silence, and it must not be swallowed:
+                // the evening still has something to say, and may still have a choice in it.
+                else if (CanGoToHerAnyway(wife)) shutAgainstYou.Add(wife);
             }
 
             // Every door closed: no choice is offered at all, only the quiet reason (Anton's ask —
-            // a popup of greyed-out names is a worse silence than none).
-            if (open.Count == 0)
+            // a popup of greyed-out names is a worse silence than none). Unless one of them is shut
+            // against YOU rather than by her season, in which case the question still stands, and
+            // it is the hardest one this mod asks.
+            if (open.Count == 0 && shutAgainstYou.Count == 0)
             {
                 if (closedDoors.Count > 0 && closedDoors.Count == wives.Count(w => IsCoLocated(w)))
                     NotifyNight(NightText.CustomDaysNotice(closedDoors.Select(w => w.Name?.ToString() ?? "she").ToList()));
+                RecordTheRestOfTheNight(null);
+                return;
+            }
+            if (open.Count == 0 && AutoVisit)
+            {
+                // Nothing to visit of its own accord. The automatic night NEVER walks through a
+                // shut door — that choice is the player's alone to make, by hand, every time.
                 RecordTheRestOfTheNight(null);
                 return;
             }
@@ -276,7 +352,7 @@ namespace ImmersiveAI
             // opens the evening's choice when clicked. X it and you are not asked for a week; leave
             // it and it lapses at first light like any other. Only when that UI is unavailable does
             // the old immediate popup stand in — and even then, never mid-battle or mid-talk.
-            _nightAskedOnDay = (int)CampaignTime.Now.ToDays;
+            _nightAskedOnDay = NightCycleNow();
 
             if (UI.MapNoticePatch.Applied && _config.UseMapNoticeForInitiations)
             {
@@ -290,13 +366,13 @@ namespace ImmersiveAI
 
         // ------------------------------ the evening's notice ------------------------------
 
-        // The campaign day a notice was raised on. A DAY and not a bool, so that a notice which
-        // simply lapsed at dawn cannot leave the flag stuck and silence every evening after it —
-        // the day turning clears it by itself, with nothing to remember to reset. Not persisted: a
-        // reloaded save just lets that evening pass, exactly as the reach-out notices do.
+        // The night-cycle a notice was raised on. A CYCLE and not a bool, so that a notice which
+        // simply lapsed cannot leave the flag stuck and silence every evening after it — the cycle
+        // turning clears it by itself, with nothing to remember to reset. Not persisted: a reloaded
+        // save just lets that evening pass, exactly as the reach-out notices do.
         private int _nightNoticeDay = int.MinValue;
 
-        private bool NightNoticeUp => _nightNoticeDay == (int)CampaignTime.Now.ToDays;
+        private bool NightNoticeUp => _nightNoticeDay == NightCycleNow();
 
         private void RaiseNightNotice(List<Hero> wives)
         {
@@ -304,15 +380,20 @@ namespace ImmersiveAI
             {
                 if (NightNoticeUp) return;
 
-                var who = wives.Where(w => NightBlockFor(w, out _).Length == 0)
-                    .Select(w => w.Name?.ToString() ?? "she").ToList();
-                var line = who.Count == 1
-                    ? $"{who[0]} is here. Where will you sleep tonight?"
+                // Whose face the notice wears (2026.08.15): the one it is actually about. With one
+                // open door that is simply her; with several it is whoever heads the very list the
+                // click is about to open, so the picture and the popup agree. A notice with nobody
+                // behind it — every door shut — still goes up, and simply wears the plain icon.
+                var open = wives.Where(w => NightBlockFor(w, out _).Length == 0)
+                    .OrderBy(NightSortKey).ToList();
+                var line = open.Count == 1
+                    ? $"{open[0].Name?.ToString() ?? "She"} is here. Where will you sleep tonight?"
                     : "Where will you sleep tonight?";
 
-                _nightNoticeDay = (int)CampaignTime.Now.ToDays;
+                _nightNoticeDay = NightCycleNow();
                 Campaign.Current.CampaignInformationManager.NewMapNoticeAdded(
-                    new UI.ImmersiveNightMapNotification(new TextObject("{=!}" + line)));
+                    new UI.ImmersiveNightMapNotification(new TextObject("{=!}" + line),
+                        open.FirstOrDefault() ?? wives.FirstOrDefault()));
             }
             catch (Exception ex)
             {
@@ -329,7 +410,7 @@ namespace ImmersiveAI
             {
                 var self = Current;
                 if (self == null || !self.NightsOn || !self.NightNoticeUp) return false;
-                if (self._nightLedger!.IsNightSettled(CampaignTime.Now.ToDays)) return false;
+                if (self._nightLedger!.IsCycleSettled(CampaignTime.Now.ToDays, self.NightResetHour)) return false;
                 return self.IsWithinEveningWindow();
             }
             catch { return false; }
@@ -343,7 +424,7 @@ namespace ImmersiveAI
                 var self = Current;
                 if (self == null) return;
                 self._nightNoticeDay = int.MinValue;
-                var wives = SpousesOfPlayer();
+                var wives = WomenOfTheHearth();
                 if (wives.Count > 0) self.AskWhereYouWillSleep(wives);
             }
             catch (Exception ex) { ModLog.Error("opening the evening's choice", ex); }
@@ -375,7 +456,7 @@ namespace ImmersiveAI
             {
                 double lastNight = CampaignTime.Now.ToDays - 1;
                 if (lastNight < 0) return;
-                if (_nightLedger!.IsNightSettled(lastNight)) return;
+                if (_nightLedger!.IsCycleSettled(lastNight, NightResetHour)) return;
                 if (_nightLedger.LastSettledNight < 0)          // the very first evening settles nothing
                 {
                     _nightLedger.SettleNight(lastNight);
@@ -413,6 +494,17 @@ namespace ImmersiveAI
                         MoodTides.DoorIsClosed(mother.StringId, today))) + ".";
 
                     elements.Add(new InquiryElement(wife, name, SafePortrait(wife), block.Length == 0, hint));
+
+                    // AND THE HARDEST THREE WORDS IN THE MOD, offered only where a door is shut
+                    // against HIM and never where it is her body's own season. There is no third
+                    // option here on purpose: respecting it is not a button, it is not pressing
+                    // this one.
+                    if (block.Length > 0 && CanGoToHerAnyway(wife))
+                        elements.Add(new InquiryElement(new DutyChoice(wife), $"{name} — go to her anyway",
+                            SafePortrait(wife), true,
+                            "She will not refuse you. She will not welcome you either, and she will remember it — "
+                            + "in her own words, on the list of what stands between you. Nothing is written of such "
+                            + "a night."));
                 }
 
                 elements.Add(new InquiryElement(AloneChoice, "Not tonight — I have other cares",
@@ -436,6 +528,16 @@ namespace ImmersiveAI
                 MBInformationManager.ShowMultiSelectionInquiry(data, true);
             }
             catch (Exception ex) { ModLog.Error("asking where the night will be spent", ex); }
+        }
+
+        /// <summary>The one identifier that is a person AND a different question about her. Its own
+        /// type so the choice can never be confused with simply picking her — going to a woman whose
+        /// door is open and going through a door she shut are not the same act and must not share a
+        /// code path.</summary>
+        private sealed class DutyChoice
+        {
+            public readonly Hero Wife;
+            public DutyChoice(Hero wife) { Wife = wife; }
         }
 
         // The three answers that are not a person.
@@ -479,6 +581,9 @@ namespace ImmersiveAI
                     return;
                 }
 
+                // Through a shut door there is no gift question and no wish: nothing is being made
+                // of this evening, which is the whole of what it says.
+                if (identifier is DutyChoice duty) { GoToHerAnyway(duty.Wife); return; }
                 if (identifier is Hero wife) AskWhatYouBring(wife);
             }
             catch (Exception ex) { ModLog.Error("taking the night's choice", ex); }
@@ -516,7 +621,7 @@ namespace ImmersiveAI
                     picked =>
                     {
                         var tier = picked?.FirstOrDefault()?.Identifier as NightGifts.Tier;
-                        if (tier != null) SpendTheNightWith(wife, tier);
+                        if (tier != null) AskWhatYouHaveInMind(wife, tier);
                     },
                     // Backing out of the GIFT question settles nothing. It used to close the whole
                     // evening as a night alone, which is a harsh reading of "let me think about it"
@@ -528,6 +633,70 @@ namespace ImmersiveAI
                 MBInformationManager.ShowMultiSelectionInquiry(data, true);
             }
             catch (Exception ex) { ModLog.Error("asking what is brought to the night", ex); }
+        }
+
+        // ------------------------------ what he has in mind ------------------------------
+
+        /// <summary>
+        /// THE ONE LINE THE PLAYER WRITES HIMSELF (2026.08.15, Anton's design — "I want us to spend
+        /// the night under the stars"). Everything else about a night is chosen from a list; this is
+        /// typed, in his own words and his own tongue, and it goes to the chronicler as HIS intent
+        /// for the evening.
+        ///
+        /// THREE THINGS ABOUT THE SHAPE, all of them deliberate:
+        /// • It is asked ONLY for a night that will actually be written. A wish handed to a plain
+        ///   night has nowhere to land — there is no account for it to shape — and asking for one
+        ///   anyway would be the mod promising something it then quietly drops.
+        /// • BOTH buttons go to her. "Nothing in particular" is an answer, not a way out: the way
+        ///   out was the gift question, which is still the last thing that can be backed out of, and
+        ///   turning a shrug here into a cancelled evening would be a trap rather than a question.
+        /// • Nothing is charged and nothing is rolled until <see cref="SpendTheNightWith"/>, so a
+        ///   popup that sits open while the world moves costs nothing and is re-checked at the seal
+        ///   exactly as before.
+        /// </summary>
+        private void AskWhatYouHaveInMind(Hero wife, NightGifts.Tier tier)
+        {
+            try
+            {
+                if (wife == null || tier == null) return;
+                if (!_config.AskWhatYouHaveInMind || !tier.WritesStory)
+                {
+                    SpendTheNightWith(wife, tier);
+                    return;
+                }
+
+                var name = Safe(() => wife.Name?.ToString() ?? "her", "her");
+                var inquiry = new TextInquiryData(
+                    new TextObject("{=ImmersiveAI_NightWish}Have you something in mind?").ToString(),
+                    $"If there is something you want of this night with {name} — a place, an hour, a thing "
+                    + "you mean to say or to do — set it down and the night will be shaped by it as far as it "
+                    + "can be. What she makes of it is hers. Leave it empty and let the evening find its own way.",
+                    true, true,
+                    new TextObject("{=ImmersiveAI_NightGoWith}Go to her").ToString(),
+                    new TextObject("{=ImmersiveAI_NightGoPlain}Nothing in particular").ToString(),
+                    new Action<string>(text => SpendTheNightWith(wife, tier, wish: text)),
+                    new Action(() => SpendTheNightWith(wife, tier)),
+                    false, null, "", "");
+
+                InformationManager.ShowTextInquiry(inquiry, true);
+            }
+            catch (Exception ex)
+            {
+                // A question that could not be put must never cost the night itself.
+                ModLog.Error("asking what you have in mind for the night", ex);
+                SpendTheNightWith(wife, tier);
+            }
+        }
+
+        /// <summary>A wish is a line, not a letter: long enough for a real thought, short enough that
+        /// it steers the account rather than becoming it.</summary>
+        private const int MaxWishChars = 300;
+
+        private static string TrimWish(string? raw)
+        {
+            var text = (raw ?? string.Empty).Replace('\r', ' ').Replace('\n', ' ').Trim();
+            while (text.Contains("  ")) text = text.Replace("  ", " ");
+            return text.Length <= MaxWishChars ? text : text.Substring(0, MaxWishChars).TrimEnd();
         }
 
         // ------------------------------ the night itself ------------------------------
@@ -550,7 +719,8 @@ namespace ImmersiveAI
             catch (Exception ex) { ModLog.Error("the automatic night", ex); }
         }
 
-        private void SpendTheNightWith(Hero wife, NightGifts.Tier tier, bool automatic = false)
+        private void SpendTheNightWith(Hero wife, NightGifts.Tier tier, bool automatic = false,
+            string? wish = null)
         {
             try
             {
@@ -580,6 +750,7 @@ namespace ImmersiveAI
 
                 var chosen = tier ?? NightGifts.Plain;
                 var record = BuildNightRecord(wife, chosen);
+                record.Wish = TrimWish(wish);
                 RollForAChild(wife, record, chosen);
 
                 // The evening may already have been settled as a night alone — the dusk question
@@ -606,7 +777,7 @@ namespace ImmersiveAI
                     WriteNightBeat(wife, NightText.PlainBeat(PlayerName(), record.PlaceName));
                     record.BeatDone = true;
                     SaveNightLedger();
-                    UI.ChatWindow.ChatWindowManager.OnThreadChanged(wife, markUnread: false);
+                    UI.TalkUI.OnThreadChanged(wife, markUnread: false);
                 }
                 else
                 {
@@ -616,6 +787,69 @@ namespace ImmersiveAI
                 }
             }
             catch (Exception ex) { ModLog.Error("spending the night", ex); }
+        }
+
+        /// <summary>
+        /// "GO TO HER ANYWAY" (2026.08.15). Nobody forces anybody: she does not refuse, she
+        /// PERFORMS, and the weight of it is exactly that.
+        ///
+        /// THE NO-NARRATOR RULE IS THIS METHOD'S SHAPE, not a sentence in a prompt. There is no
+        /// gift step, no wish, no title, no chronicler call and no ☾ notice anywhere below — the
+        /// story path is not reachable from here at all, and <see cref="NightKind.Duty"/> makes it
+        /// unreachable from the retry sweep too. There is nothing to tell. That is the telling.
+        ///
+        /// The one thing that DOES happen is the spiral: a reason is laid down on her list, by the
+        /// world and not by her tool, so it costs the same whether or not the player ever speaks to
+        /// her again. Conception stays real and vanilla-honest — a man who scorns the bond entirely
+        /// can still father children forever, while the soul of the house walks further away. That
+        /// contrast is the design.
+        /// </summary>
+        private void GoToHerAnyway(Hero wife)
+        {
+            try
+            {
+                if (wife == null || !NightsOn) return;
+                // Re-checked at the act and never trusted from the popup — she can walk away, her
+                // season can begin, or she can open her door, while the question sits on screen.
+                // CanGoToHerAnyway now carries the presence and cooldown checks too.
+                if (!CanGoToHerAnyway(wife))
+                {
+                    NotifyNight($"You did not go to {wife.Name}.", SealGrey);
+                    RecordTheRestOfTheNight(null);
+                    return;
+                }
+                if (DoorBlockFor(wife).Length == 0)
+                {
+                    AskWhatYouBring(wife);   // her door opened after all: this is an ordinary night
+                    return;
+                }
+
+                var record = BuildNightRecord(wife, NightGifts.Plain);
+                record.Kind = NightKind.Duty;
+                record.GiftName = string.Empty;
+                RollForAChild(wife, record, NightGifts.Plain);
+
+                _nightLedger!.ClearNight(record.GameDay);
+                _nightLedger.Add(record, _config.MaxNightsRemembered);
+                RecordTheRestOfTheNight(wife, -1, NightGifts.Plain);
+                SaveNightLedger();
+
+                // Her beat: short, fixed, first person, and utterly flat. From here her own voice
+                // does the rest with no staging whatever, which is why there is nothing in it to
+                // perform.
+                WriteNightBeat(wife, NightText.DutyBeat(PlayerName()));
+                record.BeatDone = true;
+                SaveNightLedger();
+
+                // And the spiral, in code.
+                LayDutyNightReason(wife, record.Id);
+
+                // One spare sentence from Anton's own approved deck. Never generated, never
+                // brightened, and deliberately not colored like a night that went well.
+                NotifyNight(NightText.DrawDutyLine(record.Id), SealGrey);
+                UI.TalkUI.OnThreadChanged(wife, markUnread: false);
+            }
+            catch (Exception ex) { ModLog.Error("going to her anyway", ex); }
         }
 
         private static string PlayerName() => Safe(() => Hero.MainHero?.Name?.ToString() ?? "he", "he");
@@ -678,7 +912,14 @@ namespace ImmersiveAI
 
                 // The world still holds the reins when our patch could not take them: rolling here
                 // as well would give the same child two chances, which is worse than either.
-                if (!Nights.PregnancyPatch.Applied) { WarnConceptionNotOurs(); return; }
+                //
+                // A LOVER IS THE EXCEPTION, and provably so rather than hopefully: vanilla's own
+                // nightly roll lives behind `hero.Spouse != null` (decompile-verified 2026.08.15,
+                // PregnancyCampaignBehavior.DailyTickHero), and a lover has no spouse by the scope
+                // rule of the whole feature. The world cannot reach her, so there is nothing to
+                // collide with and no reason to make her barren for want of a patch.
+                bool sheIsWed = Safe(() => FamilyBuilder.AreWed(Hero.MainHero, wife), false);
+                if (sheIsWed && !Nights.PregnancyPatch.Applied) { WarnConceptionNotOurs(); return; }
                 if (Safe(() => CampaignOptions.IsLifeDeathCycleDisabled, false)) return;
                 if (mother.IsPregnant || _nightLedger!.HasPendingConception(wife.StringId)) return;
 
@@ -728,13 +969,15 @@ namespace ImmersiveAI
                 var fatherName = PlayerName();
                 var told = new HashSet<string>(StringComparer.Ordinal) { mother.StringId, player.StringId };
 
-                // His other wives first, wherever they are — for them this is not gossip.
-                foreach (var other in SpousesOfPlayer())
+                // The other women of his hearth first, wherever they are — for them this is not
+                // gossip. Wives and lovers alike: a lover hearing that another woman is carrying
+                // his child is hearing exactly the thing that matters most to her.
+                foreach (var other in WomenOfTheHearth())
                 {
                     if (other == null || !told.Add(other.StringId)) continue;
                     WriteNightBeat(other, NightText.ChildNewsBeat(motherName, fatherName, toAnotherWife: true),
                         OutreachMark.None);
-                    UI.ChatWindow.ChatWindowManager.OnThreadChanged(other, markUnread: false);
+                    UI.TalkUI.OnThreadChanged(other, markUnread: false);
                 }
 
                 // And whoever is with him — they have eyes, and a camp has no secrets.
@@ -746,7 +989,7 @@ namespace ImmersiveAI
                     if (soul == null || !told.Add(soul.StringId)) continue;
                     WriteNightBeat(soul, NightText.ChildNewsBeat(motherName, fatherName, toAnotherWife: false),
                         OutreachMark.None);
-                    UI.ChatWindow.ChatWindowManager.OnThreadChanged(soul, markUnread: false);
+                    UI.TalkUI.OnThreadChanged(soul, markUnread: false);
                 }
             }
             catch (Exception ex) { ModLog.Error("spreading the news of a child", ex); }
@@ -829,8 +1072,14 @@ namespace ImmersiveAI
                         record.Revealed = true; SaveNightLedger(); continue;
                     }
 
-                    EnsureFatherSlot(mother);
-                    MakePregnantAction.Apply(mother);   // vanilla's own door: its announcement, its due date
+                    // vanilla's own door: its announcement, its due date — and, either way, the
+                    // father snatched out of mother.Spouse at that very instant.
+                    if (Safe(() => FamilyBuilder.AreWed(Hero.MainHero, wife), false))
+                    {
+                        EnsureFatherSlot(mother);
+                        MakePregnantAction.Apply(mother);
+                    }
+                    else BorrowTheFatherSlot(mother, () => MakePregnantAction.Apply(mother));
 
                     // Only now is it truly done. An exception on the line above leaves the mark
                     // down and the record waiting, so the next hour tries again.
@@ -839,7 +1088,7 @@ namespace ImmersiveAI
 
                     // And her own word of it, in her own memory, so the chat carries the moment too.
                     WriteNightBeat(wife, ChildKnownBeat(record), OutreachMark.None);
-                    UI.ChatWindow.ChatWindowManager.OnThreadChanged(wife, markUnread: true);
+                    UI.TalkUI.OnThreadChanged(wife, markUnread: true);
 
                     // And the news travels: everyone riding or standing with the player learns it
                     // the same day, and his other wives learn it whether they are there or not.
@@ -870,6 +1119,50 @@ namespace ImmersiveAI
                 mother.Spouse = player;
             }
             catch (Exception ex) { ModLog.Error("naming the father before a conception", ex); }
+        }
+
+        /// <summary>
+        /// THE LOVER'S OWN VERSION OF THE FATHER TRAP (2026.08.15), and it is the same silent killer
+        /// wearing different clothes. Decompile-verified: vanilla's <c>ChildConceived</c> listener
+        /// builds <c>new Pregnancy(mother, mother.Spouse, dueDate)</c> — the father is snatched out
+        /// of the spouse slot AT THAT INSTANT and then held for thirty-six days. A lover has no
+        /// spouse, so the child would be fathered by null and the game would crash at the delivery,
+        /// more than a month after anything a player could connect it to.
+        ///
+        /// A wife's slot is simply SET and left (that is Marry Anyone's own move, and she really is
+        /// his wife). A lover's is BORROWED: the dispatcher is synchronous, so by the time
+        /// <c>Apply</c> returns the father has been captured, and the slot goes straight back. It
+        /// must go back — leaving it would quietly marry her to him in the world's eyes, which is
+        /// precisely the thing this whole road exists not to do.
+        /// </summary>
+        private static void BorrowTheFatherSlot(Hero mother, Action act)
+        {
+            Hero? previous = null;
+            bool borrowed = false;
+            try
+            {
+                var player = Hero.MainHero;
+                if (mother != null && player != null && mother != player && mother.Spouse != player)
+                {
+                    previous = mother.Spouse;
+                    mother.Spouse = player;
+                    borrowed = true;
+                }
+                act();
+            }
+            finally
+            {
+                // The slot goes back whatever happened — but the FAILURE does not stop here. The
+                // wife's path lets a throw reach the caller's catch, which leaves the conception
+                // unmarked so the next hour tries again; swallowing it here would mark a child
+                // revealed that was never actually applied, and it would never be retried
+                // (self-review, 2026.08.15).
+                if (borrowed)
+                {
+                    try { mother.Spouse = previous; }
+                    catch (Exception ex) { ModLog.Error("giving back the father's slot", ex); }
+                }
+            }
         }
 
         private static string ChildKnownBeat(NightRecord record)
@@ -926,7 +1219,7 @@ namespace ImmersiveAI
                 string placeName = Safe(() => PlaceNameNow(settlement), string.Empty);
                 int odds = AwarenessPercent(placeKind, tier ?? NightGifts.Plain);
 
-                foreach (var wife in SpousesOfPlayer())
+                foreach (var wife in WomenOfTheHearth())
                 {
                     if (visited != null && wife == visited) continue;
                     if (_nightLedger!.HasNightOn(wife.StringId, now)) continue;
@@ -956,12 +1249,33 @@ namespace ImmersiveAI
                         _nightLedger.AddBeside(learned, _config.MaxNightsRemembered);
                     }
                     else _nightLedger.Add(learned, _config.MaxNightsRemembered);
+
+                    // AND LEARNING HE WAS ELSEWHERE IS A WOUND (2026.08.15). For a day and a half
+                    // it will move her to come and say something, wherever she stands — and what
+                    // she says, or whether she says anything at all, is entirely hers. Only THIS
+                    // kind of night counts: hearing that he slept alone is not an injury, and
+                    // never seeing him come in is not news.
+                    if (learned.Kind == NightKind.Elsewhere) MarkFreshWound(wife, now);
                 }
 
                 _nightLedger!.SettleNight(now);
                 SaveNightLedger();
             }
             catch (Exception ex) { ModLog.Error("recording what the night was to the others", ex); }
+        }
+
+        /// <summary>She has just learned something. It stays hot for a day and a half; after that
+        /// the ordinary quiet takes over, which the design record is quite clear is worse.</summary>
+        private void MarkFreshWound(Hero her, double gameDay)
+        {
+            try
+            {
+                if (her == null) return;
+                var memory = LoadMemory(her);
+                memory.FreshWoundDay = gameDay;
+                SaveMemory(her, memory);
+            }
+            catch { /* a wound that fails to register is only a quieter morning */ }
         }
 
         private NightRecord? WhatSheLearned(Hero wife, Hero? visited, bool here, string placeKind,
@@ -1111,7 +1425,7 @@ namespace ImmersiveAI
                 SaveNightLedger();
                 NightLedger.AppendReadable(NpcPaths.NightsKeepsakeFile, record);
 
-                UI.ChatWindow.ChatWindowManager.OnThreadChanged(wife, markUnread: false);
+                UI.TalkUI.OnThreadChanged(wife, markUnread: false);
                 NotifyNight($"☾ {record.WifeName} will remember this night — \"{record.Title}\".");
             }
             catch (Exception ex) { ModLog.Error("finishing a night's account", ex); }
@@ -1193,7 +1507,7 @@ namespace ImmersiveAI
                     WriteNightBeat(wife, NightText.PlainBeat(PlayerName(), record.PlaceName));
                     record.BeatDone = true;
                     changed = true;
-                    UI.ChatWindow.ChatWindowManager.OnThreadChanged(wife, markUnread: false);
+                    UI.TalkUI.OnThreadChanged(wife, markUnread: false);
                 }
                 if (changed) SaveNightLedger();
             }
@@ -1214,6 +1528,9 @@ namespace ImmersiveAI
                 PlacePhrase = record.PlaceKind == "camp" ? string.Empty : record.PlaceName,
                 PlaceKind = record.PlaceKind,
                 GiftNote = gift.ChroniclerNote,
+                // His own line for this night, if he set one down. It rides on the record, so a
+                // night retried an hour after a failed call is still the night he asked for.
+                PlayerWish = record.Wish ?? string.Empty,
                 MinSentences = gift.MinSentences,
                 MaxSentences = gift.MaxSentences,
                 // The night's own id, so a retry an hour later is dealt the same images and stays
@@ -1558,6 +1875,11 @@ namespace ImmersiveAI
                     if (!string.IsNullOrWhiteSpace(night.OtherNightTitle))
                         told += $" — they call that night \"{night.OtherNightTitle.Trim()}\"";
                     return told;
+                // Flat, and never omitted. Falling through to the default left a duty night INVISIBLE
+                // in the "since we were last alone" list — the one place she is supposed to be able
+                // to see it standing there unaddressed (self-review, 2026.08.15).
+                case NightKind.Duty:
+                    return "my door was shut and he came to me even so";
                 case NightKind.Alone:
                     return "I saw him go to his own bed alone";
                 default:
@@ -1626,7 +1948,7 @@ namespace ImmersiveAI
                 if (self == null || !self.NightsOn) return list;
                 int today = (int)CampaignTime.Now.ToDays;
 
-                foreach (var wife in SpousesOfPlayer())
+                foreach (var wife in WomenOfTheHearth())
                 {
                     var block = self.NightBlockFor(wife, out _);
                     var mother = MotherOf(wife);

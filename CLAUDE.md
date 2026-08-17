@@ -1,4 +1,4 @@
-# CLAUDE.md
+﻿# CLAUDE.md
 
 Guidance for Claude Code when working in this repository.
 
@@ -26,7 +26,23 @@ calls the LLM → reply shown in the conversation panel, memory saved and compre
 You usually only need to open:
 - **Tone / voice / prompts** → `PromptBuilder` (Core), `SituationBuilder` + `FamilyBuilder` + `CraftsBuilder` (real skills → honest craft-words, on every sheet) + `TidingsBuilder` + `TroubleBuilder` (Module), `MemoryCompressor` (Core).
 - **In-game dialog flow & menu options** → `ImmersiveChatBehavior` (Module); the letter flows live in its partial `ImmersiveChatBehavior.Letters.cs`.
-- **The chat window** → `UI\ChatWindow\` (VM + manager) + `module\GUI\Prefabs\ImmersiveChatWindow.xml`; its quick-turn plumbing is the chat-window region in `ImmersiveChatBehavior`.
+- **THE TALK SCREEN** (2026.08.14 — the one place words happen now) → `UI\TalkScreen\` +
+  `module\GUI\Prefabs\ImmersiveTalkScreen.xml` + the bridges in `ImmersiveChatBehavior.Talk.cs`.
+  It MERGED the chat window and the letter window: one list of everyone you know (here / away /
+  gone), the chosen one drawn alive in the middle by the game's own map-conversation tableau, and
+  one thread where letters sit among the spoken words. Scrolling UP past the oldest word shows the
+  real next prompt — **tool list FIRST, then the sheet** (2026.08.15: the hands used to sit between
+  the sheet and the talk, and the sheet's thousands of words buried them) — for every player, no button.
+  **Leaving the vanilla dialog for the screen must also leave the ENCOUNTER** (`PartFromMapEncounter`,
+  2026.08.15): clicking a band on the map opens a `PlayerEncounter` and the talk runs inside it, and
+  every vanilla parting sets `LeaveEncounter` — ours only closed the window, so the encounter sat in
+  Wait and raised its stand-off menu the instant the map was live again, the screen merely covering it.
+  NOT while at war, NOT once a `MapEvent` exists, NOT from inside walls: there it would be a free escape
+  from a fight the player rode into, and the menu is the honest state rather than a bug. Everything reaches it through
+  the `UI\TalkUI.cs` façade — notices fan out to all shapes, opening goes to the chosen one — so
+  retiring the old windows later is a ONE-FILE change. The old windows are kept whole behind
+  `UseClassicChatWindow` (default false) and an automatic session fallback.
+- **The old chat window** (fallback only) → `UI\ChatWindow\` (VM + manager) + `module\GUI\Prefabs\ImmersiveChatWindow.xml`; its quick-turn plumbing is the chat-window region in `ImmersiveChatBehavior`.
 - **"Think" (the player's own next line)** → Core `Prompts\PlayerThought` (the aside + the answer-taming) + `Prompts\ConversationPresets` (the presets file model) + the `ImmersiveChatBehavior.Thoughts.cs` partial + both windows' VMs/prefabs.
 - **Per-NPC files, paths, migration** → `NpcPaths` (Module).
 - **What each NPC carries** → `NpcMemory` (per-person memory of the player) + `NpcSelf` (`self.txt`, their general self). NOTE two subsystems were RETIRED 2026.08.08 — the distilled `KnownFacts` (the `hold_truth` tool + the reflection `FACTS:` section) and `NpcGoals`/`goals.txt` (the `tend_goals` tool + the `GOALS:` section): both cramped what the rolling memory already held and read it back to her twice, and each cost a tool slot in every reply. Do not reintroduce either; the deep memory carries it all now.
@@ -44,6 +60,51 @@ You usually only need to open:
 - **The road journal** → Core `Journey\` (`JourneyLog` visits/quests + pruning + JSON, `JourneyText` — the witness prose, unit-tested) + the `ImmersiveChatBehavior.Journey.cs` partial (nine campaign-event hooks: stops, trade, recruits, garrison drops, captives, quests) — the situation block only for souls riding IN the player's party.
 - **The nights of a marriage & THE LINE** → Core `Nights\` + `Together\TogetherLine` (the line since we were last alone) (`NightRecord`/`NightLedger` `_nights.json` + `nights.txt`, `NightGifts` the 0/10/100/300/1000 tiers, `NightOdds` the fertility-spread arithmetic, `NightText` — the short Song-of-Songs prompt, the permanent beat marks, the roll; unit-tested) + `MoodTides.Fertility` + the `ImmersiveChatBehavior.Nights.cs` partial + `Nights\PregnancyPatch` (the SECOND Harmony touch) + `UI\NightWindow\` (hotkey H). Decision record docs/nights-and-conception-design.md.
 - **Courtship & marriage** → Core `Courtship\` (CourtshipRoad rails + stages, CourtshipMisgiving + CourtshipMisgivings ops — HER OWN written doubts, the checkable-ask DSL/MatchmakerLedger retired 2026.08.08, CourtshipSeed, CourtshipText — every word she reads, numberless refusals) + Module `Tools\TrothTool` (tend_courtship + bless_marriage) + `Tools\MisgivingTool` (weigh_misgivings) + the `ImmersiveChatBehavior.Courtship.cs` partial (gates, seals, seeding, blessing, Marry Anyone compat, letter-borne offers) + docs/marriage-courtship-design.md.
+
+- **THE VOICES** (they can be HEARD, 2026.08.14–15) → Core `Voices\` (`SpeakableText` the words vs the
+  gestures, `VoiceCacheKey` the identity of one utterance, `VoiceBudget` the anti-derail arithmetic,
+  `WavFiles` the joiner that makes streaming gapless, `VoiceLibrary`/`VoicePreset`/`VoiceAssignments`
+  the shelf and the casting sheet, `VoiceHostProtocol` the wire) + Module `Voice\` (`VoiceService`
+  the one door, `VoicePlayback` the chain, `VoiceHostClient` the sidecar, `CloudVoiceClient` the
+  hosted road, `VoiceCache`, `VoiceEngineDiscovery`, `VoiceEngineGate`) + the separate net8
+  `ImmersiveAI.VoiceHost` process + `UI\TalkScreen\VoiceRowVM` and the panel in `TalkScreenVM`.
+  **THE VOICES THAT SHIP WITH THE MOD** live in `module\Voices\` (tracked in git; `female\`/`male\`
+  subfolders are ours alone — any other group name works and simply lends no gender hint, and a
+  voice folder may sit loose at the top). `deploy.ps1` and `package.ps1` both copy it to
+  `Modules\<id>\Voices`, and Core `VoiceSeeds.Seed` lays each one onto the player's shelf ONCE,
+  called from `VoiceService.EnsureShelf` (once a session, ledgered anyway). TWO RULES, both about
+  never overruling the player, both unit-tested: a name already on their shelf is never written
+  over, and a voice already offered is never offered again — deleting one has to MEAN something,
+  which is what `Voices\_seeded.json` records, and why a name is ledgered when it is OFFERED rather
+  than when it is copied. A broken shipped voice costs only itself and arrives once mended. A NEW
+  voice added in a later version arrives on its own. Gender is filled from the group folder ONLY
+  when the voice states none. **Ship only what we have the right to ship** — a voice folder carries
+  the clip it was cloned from, so CC0/public-domain source audio only (kyutai/tts-voices). That is
+  enforced, not merely asked: `package.ps1` carries a `$neverShip` list (matching folder name AND
+  the name/id inside voice.json, so a rename cannot slip past) and REFUSES to package — while
+  `deploy.ps1` deliberately does not check, because the local install is exactly where a
+  development clone belongs. See the memory note `voice-shipping-constraint`.
+  **OFF by default and it must stay that way** (`EnableVoice`), found through the "Voices" button
+  that shows for everybody. **WHO SPEAKS FOR A SOUL nobody cast** (2026.08.15, Anton's ask) is Core
+  `Voices\VoiceCasting`: cast by hand → **a voice of their own people and sex** → one of no people →
+  anyone of that sex → silence. The **all-women/all-men slots were RETIRED 2026.08.15** (Anton: every
+  Khuzait still speaking with Max): they outranked the per-people pick, an auto-fill used to set them
+  on a fresh shelf, and NOTHING in the panel could undo one — so the buttons, the two MCM dropdowns
+  and the reads are gone, `VoiceAssignments.DefaultFemale/Male` survive as dead compat rails, and
+  `ClearDeadDefaults` empties them once on load. Do not reintroduce them. **Hosted voices are never
+  auto-cast** (billed per minute — an unasked-for bill); they speak only when cast by hand. **The
+  PLAYER is auto-cast too** by the same rule, their own slot only overriding it. The shipped shelf is `module\Voices\<gender>\<culture>\<voice>\`
+  (sex, then the game's own culture id, then the voice; `other\` = belonging to nobody, and both
+  shallower shapes still seed), stamped onto `VoicePreset.Gender`/`Culture` by `VoiceSeeds`, which
+  now also settles ids for the whole batch at once so two peoples may both have a "gwen". The pick
+  is **RENDEZVOUS HASHING over `Hero.StringId`, not random and not hash-modulo-count**: random
+  re-rolls on every load (a companion changing voice after a reload, while the save snapshots rewind
+  her memories — exactly backwards), and modulo would recast every Battanian woman the moment an
+  update added one more. Scoring each candidate and taking the highest moves ~1 soul in n instead.
+  `FillEmptyDefaults` is dead with them. `Speaker` gained `Culture` under the same off-thread test as
+  `IsFemale` (fixed for a hero's life); do not widen it further. Read `docs/voiceover-engine-notes.md` before touching any of it — every
+  number in it was measured against the real engine, including the two that matter most: **one audio
+  token is exactly 80 ms**, and **a real derail ran 202 characters of Bulgarian to 327.68 seconds**.
 
 Ship it in one line (game closed): `powershell -ExecutionPolicy Bypass -File tools\deploy.ps1` —
 installs as **"Immersive AI (dev)"** (`Modules\ImmersiveAI.Dev`), its own identity beside the Steam
@@ -76,6 +137,11 @@ booting up.
 src/ImmersiveAI.Core/     netstandard2.0 — game-independent logic, fully unit-tested
   Llm/                    IChatClient/IToolChatClient + ChatMessage/ChatResult, ToolDefinition/
                           ToolCall, ToolLoopRunner (the recall loop; no HTTP, no game deps)
+  Prompts/PromptPack.cs   (2026.08.14) the player-owned prompts.txt: key = "one-liner" or a """block""",
+                          # and // comments, {slot} placeholders. Laws, all unit-tested: a broken key
+                          never costs more than itself (the compiled-in default stands), an EMPTIED
+                          key stays empty (that is the off switch), unknown keys are kept not dropped,
+                          render->parse round-trips. The registry over it is Phase 3, not yet built
   Letters/                Letter, LetterBag (queue + JSON persistence), LetterCourier (travel math)
   Battles/                BattleRecord (+side stats/participants/loot summary), BattleLedger (JSON
                           per battle + loose find-by-name), BattleText (titles/tales/beats/accounts)
@@ -101,6 +167,13 @@ src/ImmersiveAI.Core/     netstandard2.0 — game-independent logic, fully unit-
 src/ImmersiveAI.Module/   net472 — the Bannerlord module; references game DLLs
   SubModule.cs            entry point: registers behavior, drains dispatcher each tick
   ImmersiveChatBehavior.cs  the campaign behavior: dialog + conversation turn orchestration
+  ImmersiveChatBehavior.Talk.cs     partial: the talk screen's bridges — ContactsForTalk (ONE circle:
+                          co-located, remembered-and-away, and the dead whose letters remain), ReachOf
+                          (Spoken / Letter / Closed — the single place presence, couriers and death are
+                          reasoned about), and PromptPreviewFor (the scrollback). The preview shares its
+                          tool list with the real call via GatherSpokenTools, factored out of
+                          CompleteSpokenAsync precisely so a preview can never drift into a fiction,
+                          and builds its situation FRESH so no stale captured moment stands in
   ImmersiveChatBehavior.Births.cs   partial: the birth chronicle (the hook, the hour, the feast and
                           its deferred offer, the beats, the keepsake, the retries)
   ImmersiveChatBehavior.Celebrations.cs  partial: who stands at a day of the player's — the ONE
@@ -113,6 +186,74 @@ src/ImmersiveAI.Module/   net472 — the Bannerlord module; references game DLLs
   Tools/FieldCraft.cs     the field-craft (2026.07.12): survey_surroundings + weigh_battle — the country
                           about and the scales of battle, only for souls with a party on the map
   Tools/HeartTool.cs      the heart's own hand (move_heart), weighed every reply
+  UI/TalkScreen/          (2026.08.14) THE TALK SCREEN — TalkScreenVM/TalkContactVM/TalkScreenManager,
+                          plus ConversationTableauController + ConversationSceneBuilder, which host
+                          the game's OWN map-conversation tableau in our layer (it is a render-to-
+                          texture tableau, not a mission, and every type on the path is public).
+                          FOUR TRAPS, all decompile-verified, all in ConversationSceneBuilder: the
+                          MapConversationMission stub must be planted or the tableau NREs on its first
+                          tick; its ctor sets CampaignMission.Current and that MUST be nulled again or
+                          the game believes the player is in a mission (army management refuses,
+                          tournament gear changes); the conversation scene is ONE shared cached scene,
+                          so never build while IsConversationActive and always release on close; and
+                          the hall interiors ship for the six base cultures only — War Sails' nord/
+                          vakken have none, so an unknown culture is drawn by its LAND instead.
+                          Teardown order is layer-down THEN scene-release. Gestures deliberately not
+                          Arrived at in THREE goes on 2026.08.14 — read this before touching it. The
+                          answer is in the game's own OnConversationPlay, which branches: a non-empty
+                          reactionId plays Reactions[id] (a one-off GESTURE), an empty one with a set
+                          idleActionId plays IdleAnimStart (they TAKE THAT STANCE). Gestures were
+                          rejected twice ("странно изглежда, overdoing it", then "просто правят едно
+                          и също движение… не съм го виждал преди"); what vanilla actually does — and
+                          what Anton remembered — is CHANGE OF POSE: "веднъж стои с ръка на кръста,
+                          веднъж нещо друго" (a hand on the hip IS the "hip" idle, not a reaction).
+                          So `ShiftStance` sends reaction and reaction-face EMPTY and hands them a
+                          DIFFERENT idle each time the player speaks. The set is relation-banded
+                          (fond/easy/guarded/hostile — all ids real entries of the game's own
+                          conversation_animations.xml), the position WITHIN the set walks one step per
+                          message, and each soul starts at their own offset (FNV of their id) so two
+                          companions are never mirrors. NOTE the engine's
+                          DoesActionContinueWithCurrentAction: handing the SAME idle twice does
+                          nothing visible, which is why a stable stance looked frozen.
+                          DO NOT map feelings onto the body — the words carry them, and the body
+                          saying it too reads as pantomime.
+                          THE ONE PIECE OF REFLECTION on the whole path lives here and is
+                          unavoidable: OnConversationPlay keeps its entire animation body behind
+                          ConversationManager.SpeakerAgent.Character.IsPlayerCharacter, and
+                          SpeakerAgent is set ONLY by a live dialogue flow — hosting the tableau
+                          leaves it null, so a try/catch would hide the throw and the gestures would
+                          simply never fire. One private field (_speakerAgent), planted while the
+                          screen is up, put back to null on close. Reaction ids are limited to the
+                          six every stance carries (positive/very_positive/unsure/negative/
+                          very_negative/trivial) because the lookup behind them is a raw indexer.
+                          Idle/breathing/blinking come free.
+                          THE WORLD IS HELD STILL while the screen is up (`HoldTheWorld`/
+                          `ReleaseTheWorld`): the campaign clock stops and the game's own frame
+                          limiter is borrowed (`NativeOptions` FrameLimiter, real fps, 30..360;
+                          config `TalkScreenFpsLimit`, default 60, 0 = leave the player's alone; MCM
+                          slider, live). `SaveConfig()` is never called, so a crash costs the player
+                          nothing but a restart. Released FIRST in TearDown, outside every other try.
+                          DO NOT DISABLE THE MAP'S SCENE VIEW TO GAIN FRAMES — tried 2026.08.14 and
+                          it CRASHED the game on every close. Vanilla's Talk does exactly that
+                          (`isSceneViewEnabled = !isConversationActive && (TopScreen == this)`) and
+                          it is why vanilla runs at twice our framerate, but re-enabling is not one
+                          call: MapScreen follows it with `MapScene.CheckResources` and a full
+                          re-creation of the water-wake renderer, and skipping those brings the map
+                          back holding freed resources — a hard native crash, worst at sea, which is
+                          where Anton plays. MapScreen also caches the flag privately, so it cannot
+                          be told what we did. If ever revisited: mirror the WHOLE enable sequence
+                          and test it on water.
+                          THE WIDGET GETS THE WHOLE SCREEN, ALWAYS (playtest, 2026.08.14): the tableau
+                          renders through a camera whose shape follows its widget, and vanilla only
+                          ever hands it a full-screen parent — penned into a narrow column it draws
+                          the same picture into a different shape and the person comes out SQUEEZED,
+                          differently after each re-measure. So it is a full-screen sibling and the
+                          side panels lie on top of it. Bodyguards: `party: null` is the ONLY thing
+                          that suppresses the hangers-on behind a soul (no other flag is read), and
+                          the player's own company is drawn without them
+  UI/TalkUI.cs            the façade the whole mod knocks on: notices fan out to every window shape
+                          (each a no-op when closed), opening goes to whichever shape is in use.
+                          Retiring the two old windows is a one-file change here
   UI/                     MapNoticePatch (the one Harmony patch), ImmersiveChatMapNotification (+ save
                           definer — never remove), ImmersiveChatNotificationItemVM (portrait notice VM),
                           Portraits (shared dark-backdrop portrait codes), ChatWindow\ (the chat window:
@@ -161,7 +302,9 @@ src/ImmersiveAI.Module/   net472 — the Bannerlord module; references game DLLs
                           memories.json for the hourly rolls and the odds view
 tests/ImmersiveAI.Core.Tests/  xUnit tests for Core (net8.0)
 module/SubModule.xml      Bannerlord module manifest (module ID: ImmersiveAI)
-module/GUI/               Gauntlet prefab overrides (MapNotificationItem.xml — the portrait notice)
+module/GUI/               Gauntlet prefabs: ImmersiveTalkScreen.xml (the talk screen), the two older
+                          windows it replaced, the hearth window, the socialness stepper, and the one
+                          override (Map\MapNotificationItem.xml — the portrait notice)
 lib/0Harmony.dll          bundled Harmony 2.4.2 (MIT); ships in the module bin via deploy.ps1
 CHANGELOG.md              the PLAYER-FACING running list: every player-visible change lands under
                           [Unreleased] the day it ships, as a ONE-LINE PILL — never a paragraph
@@ -477,10 +620,21 @@ Created on first run under `Documents\Mount and Blade II Bannerlord\Configs\Imme
   point to a letter); the player writes first with no greeting ceremony; unsent drafts survive
   closing the window; the NPC's relation points show beside their name and move with each exchange;
   and NPC reach-outs land there as waiting spoken messages instead of accept/decline popups; all default on),
+  `UseClassicChatWindow` (2026.08.14 — go back to the two SMALL windows instead of the one TALK
+  SCREEN that replaced them. INSURANCE, not taste: the screen borrows the game's own conversation
+  visuals, and a game patch could move them out from under it — if that ever happens the screen bows
+  out by itself for the rest of the session and the old windows carry on, so this switch is only for
+  making that permanent or for anyone who preferred the old shape; default false. Both old hotkeys
+  open the one screen, and `EnableChatWindow` still gates the whole thing),
   `OpenInitiationsFaceToFace` (default on, takes precedence over `SendInitiationsToChatWindow` for what
   a reach-out notice CLICK does: opens the OLD-STYLE face-to-face conversation showing the greeting the
   NPC already spoke — no accept/decline; X'ing the notice just leaves that recorded greeting unanswered,
-  the stamps telling the silence; the chat window is still reachable by hotkey to reply there instead),
+  the stamps telling the silence; the chat window is still reachable by hotkey to reply there instead.
+  **THE TALK SCREEN OVERRULES IT** — 2026.08.15, Anton's ask: `UsesFaceToFaceInitiations` is now
+  `OpenInitiationsFaceToFace && !UI.TalkUI.UsesTalkScreen`, so a knock opens the screen where the soul is
+  actually DRAWN. The setting was written when the alternative was a small widget over the map and the
+  panel was the richer of the two. Deliberately GATED, not migrated in config.json — it is the right
+  answer again the moment the screen bows out),
   `UseMapNoticeForInitiations` (NPC offers as persistent portrait notices in the right-side map stack
   instead of an immediate popup; default on, falls back to the popup if the notice UI is unavailable;
   the click opens the face-to-face conversation, the chat window, or the accept/decline offer per the
@@ -564,7 +718,20 @@ Created on first run under `Documents\Mount and Blade II Bannerlord\Configs\Imme
   SEES them: bond line "misgivings 2/4", a "Misgivings n/m" button in the chat window opens the
   list (settled ones with her note), and EVERY movement leaves a log line in Anton's color language
   — ROSE when the heart clears (settle/release/clear heart), FROST-BLUE when something freezes
-  (set_down/reopen, and the road's own step-back; a broken troth alone stays red). Souls
+  (set_down/reopen, and the road's own step-back; a broken troth alone stays red).
+  **A REFUSED REACH IS ALSO A MOVEMENT AND MUST BE SEEN** (2026.08.15, Steam/rmanicky: courted to
+  2/4, so the road refused every step and every lay, so no seal popup could ever fire — and she
+  staged a temple wedding in words while the log said NOTHING, which reads exactly like a broken
+  mod): `NotifyRoadRefused` (frost blue, NOT gated on `ShowNpcActivity`, silent for letters) names
+  what was reached for and why nothing was sealed, from `CourtshipText.ForwardRefusalForPlayer` —
+  her side stays numberless, the PLAYER's side names the cause, and the wedding line says outright
+  "whatever is said now, you are not wed". Beside it `CourtshipText.WordsDoNotWed`, the anti-pretence
+  rail in her own voice (no vows between them, no temple, no ceremony described to each other makes
+  a marriage), riding the sheet at every stage below Wed, a short form in `tend_courtship`'s own
+  description, and the full one appended to EVERY refused forward reach — the moment she is told
+  "not yet" is the moment the pretending starts. The fix was never to loosen the misgivings: the
+  road behaved, and the gap was that a refusal was a private word between the mod and the model.
+  Souls
   with real history are SEEDED once from their lived story (Core `CourtshipSeed`, capped at
   Betrothed). Betrothal + wedding lay only; popups seal; both re-run everything
   (`TrothBlockReason`). The wedding is REAL: nobles `MarriageAction.Apply`; a companion bride is
@@ -834,21 +1001,50 @@ briefly show "..."; clicking again shows the reply. The custom UI in Milestone 2
 
 **NPCs reaching out on their own.** The first way the NPCs *act* instead of only answering. Each hour
 (`OnHourlyTick`), **every hero co-located** with the player right now (`IsCoLocated` — in the player's
-party, or the same settlement AND not behind the keep's closed doors: `IsBehindClosedDoors` (2026.07.12)
+party; **or close at hand on the open map** — 2026.08.15, Anton's playtest: the check knew only parties
+and settlements, so `playerSettlement == null` short-circuited to false and a lord whose band you had
+ridden right up to was "away across the map", greyed out of the talk screen and answerable only by
+courier. `IsWithinSpeakingDistance` adds the third road: their own band, NEITHER end inside walls, within
+`SpeakingDistance()`, plus a free pass for the player's own army whatever the parties' spacing that frame.
+**THE RANGE IS THE GAME'S OWN NUMBER, DOUBLED — do not guess one.** The first cut took 5 map units from
+FieldCraft's "close at hand" prose band and it was TEN TIMES too far (Anton, same day: two bands with
+daylight between them on screen counted as standing together). The honest measure was already in the
+engine: `EncounterModel.NeededMaximum{Land,Naval}DistanceForEncounteringMobileParty` is the radius at
+which two parties BUMP INTO each other — **0.5 on land, 1.5 at sea** (NavalDLC; the base model answers 0).
+Hailing is that radius × 2, floored at 1, so it follows the sea and follows any mod reshaping the model. A soul inside SOME OTHER
+settlement stays out of reach however near its walls — that is the settlement branch's job — while a
+party camped outside the gates of the town you stand in has no settlement of its own and is simply near.
+This one edit moves ~20 call sites at once: the talk screen, reach-outs, the nights, the births, the
+courtships; or the same settlement AND not behind the keep's closed doors: `IsBehindClosedDoors` (2026.07.12)
 asks the game's own `SettlementAccessModel.CanMainHeroEnterLordsHall` (+ `Settlement.BribePaid` vs the
 bribe price, vanilla's own paid-bribe rule) for anyone the `LocationComplex` places in "lordshall"/
 "prison" — no leave to enter the keep means its souls are out of chat's and reach-outs' range, though a
 known one still shows "(away)" in the window pointing to a letter, which DOES find them; fail-open so a
 model hiccup never silences a keep; distant NPCs write letters instead) joins ONE bond-scaled group roll to
 reach out — including people never spoken with: everyone carries at least `InitiationPullFloor` (default
-0.1) of a full bond's pull, so a stranger may cross the room and begin their story (their own ponder
-tells them honestly it would be a first acquaintance — `ReachOutPonderLine(stranger: true)` —
+0.1) of a full bond's pull, so a stranger may cross the room and begin their story (their own opening
+line tells them honestly it would be a first acquaintance — `FirstWordLine(stranger: true)` —
 and their first beat creates their memory). A real history raises the pull from there: each NPC's *pull*
 in [0,1] is `InitiationScorer.Pull` = `frequency × closeness × recency`: `frequency`
 saturates at `FrequencyFullAt` lifetime turns (`NpcMemory.StoryRichness` = lifetime `TotalTurns`, floored
 at surviving turns for old saves), `closeness` = a small floor
-(`InitiationScorer.ClosenessFloor`) plus |relation|/100 (love *or* enmity pulls hardest; a neutral bond
-you actually spend time with stays quiet, not silent — the floor keeps the feature observable),
+(`InitiationScorer.ClosenessFloor`) plus the WARM half of relation/100 (a neutral bond you actually
+spend time with stays quiet, not silent — the floor keeps the feature observable), **times the cold**
+(`InitiationScorer.Coldness`, 2026.08.16, Anton: closeness used to be |relation|, so "love OR enmity
+both pull" and a wife who had come to hate the player sought him out exactly as eagerly as one who
+adored him — backwards for the whole marriage batch, where he wrongs her, her door shuts, she goes
+cold, and the mod answered by having her cross the room MORE). Ill feeling now runs one way through
+visits AND letters: a straight fall from ×1 at indifference to `ColdestFactor` (×0.05) at −100 —
+small, deliberately NOT zero ("let's move from total silence, cap it to something small"), because a
+hatred that can never once speak is a soul deleted rather than a soul cold. TWO PLACES IT HAD TO
+REACH, both easy to miss: the presence FLOOR in `CoLocatedPull` is chilled with it (left alone it
+holds a hating wife at the stranger's 0.1, and the hearth's ×4.5 then makes the coldest bond in the
+campaign louder than most warm ones), and the duty floors are chilled too (a governor who dislikes
+you still files his report, the way a cold man does — rarely). The ONE thing it must never touch is
+`WoundSpike`, a floor applied over the finished pull: learning of the wrong is what drove the
+standing down, so chilling the spike would silence the very moment it exists for. Order matters —
+she comes once while it is news, and THEN the cold takes over. It also quiets angry rivals, which is
+accepted: a lord who hates you no longer crosses rooms to gloat.
 `recency` decays with days since the last talk. The pulls combine as `InitiationScorer.UnionPull`
 (= 1 − Π(1 − pull), the chance at least one soul is moved) and the hour rolls once at
 `InitiationScorer.GroupHourlyChance` = `DailyInitiationRate × unionPull ÷ 24`, so the **day's expected
@@ -867,7 +1063,30 @@ a meeting note, reading the player's letter, or the player's letter leaving the 
 themselves via `AppendRecordedTurn`'s `OutreachMark` (Reached / Considered / PlayerEngaged — desire
 weighings and invited replies rest without the pride wound). The damping multiplies AFTER the presence
 floor (else the floor re-arms the spam); `MemoryIndex` carries both fields so the hourly rolls stay
-cheap, and BondStatsLabel/the odds view show the damped truth ("awaits your answer (2 unanswered)"). Firing only happens at *safe* moments
+cheap, and BondStatsLabel/the odds view show the damped truth ("awaits your answer (2 unanswered)").
+**THE PONDER'S VERB WAS THE OTHER DIAL — AND TUNING IT KILLED IT** (2026.08.15, superseded 2026.08.16
+by the retirement below, kept because the lesson outlived the feature): the question asked "is there
+something I want to DISCUSS", raised in the 2026.07.26 wave to stop courtesy visits, and it overshot —
+*discuss* wants a MATTER, almost nobody has one on a given hour, so every ponder answered NO and the
+feature only spent tokens. Softening it to **tell**/**ask** helped and proved the deeper point: what a
+soul answers is decided by its SHEET, not by our wording, so the question was never doing the work we
+paid for. It is gone. (One rail from that day still binds anything similar: a recorded note is READ
+BACK later, so a bar softened only in a live line goes on being re-argued by the memory of it — change
+both or neither.) Spam belongs to `OutreachDamping`, which fixed the real cause (a feedback loop);
+never make a prompt do that job a second time.
+**THE TWO HEARTHS** (2026.08.15, Anton: "she is the hearth of this mod"): `ImmersiveChatBehavior.HearthRank`
+— 2 for the one the player is WED TO (`FamilyBuilder.AreWed`, never a bare `Spouse` check: a polygamy
+mod parks living wives in ExSpouses and the second wife is exactly who this is for), 1 for the player's
+own clan, 0 for the world — multiplies the co-located pull by `InitiationScorer.SpouseHearthFactor` (4.5)
+/ `CompanionHearthFactor` (1.5); a test pins spouse = 3 × companion, Anton's stated rule. It multiplies
+the WHOLE pull, presence floor included, so a wife never once spoken with still crosses the room ("even
+if no history"), and `StrangerStationFactor` is skipped for rank > 0 — you do not hold a queen's rank
+against your own wife. The damping still bites (4.5 × nothing is nothing). ONE ranking serves two
+masters ON PURPOSE: it also sorts the talk screen's list above near-or-far, so the wife heads it
+wherever she stands and is what the hotkey opens on — pinning her to the top while she never knocked
+would be the mod saying two things about one bond. **Face-to-face only, deliberately**: the post keeps
+its own `DutyRecencyFloor`/`DutyClosenessFloor` instead, and stacking 4.5× on those risked a flood of
+letters nobody asked for. Firing only happens at *safe* moments
 (`IsSafeToInitiate`/`InitiationBlockReason`: on the map, not in a scene/battle or a *non-settlement*
 encounter, not already talking — being **inside a settlement is fine**, that's where co-located NPCs are).
 **The world sleeps at night** (2026.07.11, Anton's ask): the group hourly chance is multiplied by
@@ -888,20 +1107,32 @@ in the window as "(Name, within: …)" narration and in reflection as "My own th
 2026.08.07 EVERY beat lives this way — arrivals, letters, reflection, all of it, no narrator
 anywhere). The situation for these beats is the **NEARBY shape**
 (`SituationBuilder.BuildNearby` — "X is nearby, about their own affairs"), because the meeting shape's
-closing "And now X comes to me" contradicted the question of whether to go. The beats:
-(1) `PromptBuilder.BuildInnerPrompt` with `PromptBuilder.ReachOutPonderLine` — the full sheet (news, mood,
-duty, memory) plus ONE simple nudge: "Is there something I want to discuss with them just now?" — answered
-**NO or "YES: the something"** (`InitiationParser.WantsToGo`, word-boundary-safe, old STAY/GO still read;
-unreadable answers fall back to plain yes/no, then NO). Deliberately NO instruction about what a worthy
-topic is — the first cut listed causes and banned courtesy, and that made every soul answer the same
-("the AI stops being AI and becomes a program again", Anton 2026.07.27); YES/NO rather than STAY/GO so
-the words never smell of physically leaving. Memory keeps a condensed note (`ReachOutPonderNote`,
-prefix-matched by `IsPonderBeat` so the window folds reckoning+resolution into one narration line), and the
-resolved **reason rides into the delivery** — `FirstWordLine`/`ApproachLine` carry "What brings me: …", and
-the recorded `FirstWordNote`/`ApproachNote` keep it, so the next ponder sees what was already brought (the
-content-repetition brake; inner beats also never reset `UnansweredOutreachCount`). For the offer shape the
-reason travels in `PendingNotice.Reason` → `ShowInitiationInquiry` → `_currentApproachReason`.
-(2) On GO, the player gets a
+closing "And now X comes to me" contradicted a soul who is the one doing the crossing. The beats:
+(1) **THE PONDER IS RETIRED — THE ROLL IS THE MIKE** (2026.08.16, Anton: "we now have enough events
+that the NPCs might discuss and comment on, so let us stop wasting prompts on asking them"). Until
+now a picked soul was first ASKED, in a full-sheet call of its own, whether it had anything to say
+("NO — or YES: the something", read by `InitiationParser.WantsToGo`), and only a YES ever reached the
+player. The verb in that question was tuned at both extremes over three weeks (discuss → tell/ask,
+see the 2026.08.15 entry) and the tuning is what killed it: the answer is decided by the SHEET, not
+by the wording, and the sheet now carries battles, the road journal, births, weddings, the nights,
+the line since we were last alone, tidings and rumours. Paying a whole prompt to be told "no" was
+buying silence at the price of speech. So the dice pick and the picked soul simply speaks — the bar
+the question used to set rides on as a PREMISE in `FirstWordLine`/`ApproachLine` ("there is something
+I want to tell them, or to ask them"), never as a list of worthy topics. What tempers frequency is
+the roll (`DailyInitiationRate` × the pull) and `OutreachDamping`, never a question — damping is
+where the anti-spam load has belonged since 2026.07.26, when a feedback loop turned out to be the
+real cause. **Do not reintroduce an asking step**, here or in the post. Consequences worth knowing:
+the socialness dial finally means what it says (the NO-rate was silently multiplying it down, so
+expect more company at the same setting); the offer shape now costs NOTHING until the player accepts;
+`WantsToGo` and the whole `reason` plumbing (`PendingNotice.Reason`, `_currentApproachReason`) are
+gone; `PassOnInitiation`'s "…let the moment pass" notice is gone with the refusal it reported; and
+silence survives as a fact rather than a question — a blank first word records nothing, toasts
+nothing and knocks on nothing (`DeliverFirstWordAsync`), so a stumbling backend never walks up to
+the player and says "...". Recorded ponder beats from before the cut keep their words forever
+(`ReachOutPonderNote` + `IsPonderBeat` still fold them into one narration line, and inner beats still
+never reset `UnansweredOutreachCount`); the repetition brake is now the delivery beat itself, which
+holds what was really said rather than a summary of what was meant.
+(2) The player gets a
 faced portrait toast and — with `UseMapNoticeForInitiations` on (default) — a **persistent, non-pausing
 right-side map notice wearing her live portrait** (see the Harmony section below); clicking it opens the
 accept/decline inquiry (which pauses per `PauseOnInitiationOffer`). The notice waits up to 2 in-game days,
@@ -911,7 +1142,8 @@ once. Without the notice UI the inquiry shows directly, as before. (3) The appro
 greeting (a recorded inner turn — no weaving needed, so she never repeats it), the conversation opens
 (`CampaignMapConversation.OpenConversation`) and falls into the talk loop; **Not now** → the closed door
 passes through her own mind and she answers it in her own voice (recorded, shown back with her face) —
-a lived moment, not a cold "you were refused". Two LLM calls per fired offer; she can always choose silence.
+a lived moment, not a cold "you were refused". ONE LLM call per reach-out now (the ponder is gone), and
+in the offer shape that call is made only after the player accepts — a knock waved off costs nothing.
 `MemoryCompressor` attributes legacy Angel turns by the voice's name (not "They") so summaries stay truthful.
 Toggle with `EnableNpcInitiatedChats`. Nothing about the schedule is persisted (stateless hourly rolls), so
 save/load is a non-issue. Three `[Immersive AI • test]` free-chat options
@@ -1172,9 +1404,16 @@ each hour, distant NPCs with history roll `LetterCourier.WriteRateFactor` (0.5) 
 chance × `LetterCourier.StoryDepthFactor` (richness/12 capped at 1 — one shallow conversation funds
 half-weight letters at best, 2026.07.26) × the same `OutreachDamping` as the visits (a writer whose
 letters met silence holds their pen — duty writers too: one field report, then patience until answered);
-one moved soul weighs privately, within their own mind — yes/no, recorded — whether they wish to write,
-and on a yes composes the letter with their full self (persona, memory, the situation built *apart*
-via `SituationBuilder.Build(..., apart: true)`, and the gift of recall). **The player's own clan writes
+and the picked soul simply sits to the letter, composed with their full self (persona, memory, the
+situation built *apart* via `SituationBuilder.Build(..., apart: true)`, and the gift of recall).
+**The post lost its asking step with the reach-out's** (2026.08.16, same call, same reasoning):
+`WriteLetterDesireLine` — a whole sheet spent on "do I wish, of my own will, to write now?" — is gone,
+and the premise it set (the long road, the courier standing ready) moved INTO `ComposeLetterLine`,
+after its opening marker fragment so recorded beats stay recognized. A letter still comes only when
+the dice say so, and a writer whose letters met silence still holds their pen; that is
+`OutreachDamping`'s work, never a question's. The letter a PLAYER wrote is deliberately untouched —
+answering one is a reply, not an outreach, and letting it lie unanswered stays a real choice
+(`AnswerLetterDesireLine` + `WantsToReachOut`, which is now that parser's only caller). **The player's own clan writes
 out of duty** (2026.07.12): `InitiationScorer.Pull(..., inPlayersService)` floors recency (0.6) and
 closeness (0.5) for one's own companions/kin/governors — a caravan forty days on the road still writes
 home — and their compose line invites a field report of their charge (`ComposeLetterLine(inService)`,
@@ -1182,17 +1421,29 @@ appended AFTER the marker fragment so recorded beats stay recognized). **A lette
 it arrives** (2026.07.12): `Letter.Logged` defers the letters.txt entry to delivery (default true so old
 bags never double-log; dead writers' folders resolved by identity), and the chat window seals an
 in-flight compose beat ("it is sealed, and rides toward you still" — `IsLetterOnRoadToPlayer`). The letter rides real in-game
-days by map distance (Core `LetterCourier`: 150 units/day, 0.25–10 day rails) and persists across
+days by map distance (Core `LetterCourier`: **300 units/day, 0.1–10 day rails**) and persists across
 save/load in `campaign_<id>\_letters.json` (Core `LetterBag`, atomic writes) — a letter is a promise,
-unlike a live chat. **Arrival knocks like a chat now** (2026.07.22, Anton's ask): faced toast + a
+unlike a live chat. **THE ONE LAW OF THE POST (2026.08.15, Anton's playtest): a courier is never slower
+than the player.** At 150/day he was exactly a marching column's pace, so the player could outrun his own
+letter, arrive first, and stand before the reader with it still on the road between them — which also
+barred the bond from writing again (one courier per bond). Two halves, both needed: the speed went to
+300/day (a column makes 100–140, light cavalry ~190; a test pins the rule) with the floor at 0.1 days —
+long enough to find a rider, no longer; and `HandOverLettersWhoseEndsHaveMet` pulls a letter's arrival
+forward to NOW whenever its other end is co-located, both directions. The second half is the real fix,
+and it cannot live on the hourly tick alone — **the talk screen holds the world still, so no hour ever
+ticks while it is up** — hence `TalkUI` knocks on `DeliverLettersWhoseEndsHaveMet()` at every opening. **Arrival knocks like a chat now** (2026.07.22, Anton's ask): faced toast + a
 persistent portrait map notice ("A letter has come", `ImmersiveLetterMapNotification` — saveable type
 id 2 in the definer, keep registered forever — + `ImmersiveLetterNotificationItemVM`), whose click
 opens the LETTER WINDOW on the writer's thread (`OpenWhenClear`, composer popups as fallback); the
 letter is logged to letters.txt BEFORE the notice goes up, so X ("set it aside") or a reload loses
 nothing — the words wait in the window. The old pausing inquiry ("Write back"/"Set it aside") remains
 only for dead writers or when the notice UI / letter window is unavailable. The
-player can also send first: a "Send a letter by courier" option in every town/castle/village menu opens
-the LETTER WINDOW itself (2026.07.12 — the same one the letter hotkey opens; the old recipient-picker popups
+player can also send first: a settlement-menu option opens the LETTER WINDOW itself — but under the talk
+screen the two menu lines were MERGED into one, "Speak with those you know" (2026.08.15: "Speak with
+those near you" and "Send a letter by courier" both raised the same screen). Both shapes are registered
+and separated by their CONDITIONS (`UI.TalkUI.UsesTalkScreen`), not by registration, so the session
+fallback flips them live; the old pair returns whole with the classic windows
+(2026.07.12 — the same one the letter hotkey opens; the old recipient-picker popups
 remain only as the fallback when `EnableLetterWindow` is off or the window cannot come up; one courier
 per bond at a time, co-located people pointed to go and speak). When the player's letter reaches the NPC, *reading it is a recorded moment* (the body
 lives inside the recorded line, so it enters memory even if they let it lie), and they may answer at most
@@ -1340,6 +1591,28 @@ exchange is in flight are parked and folded by `SaveMemory` (the `_pendingBlessi
 Config `EnableWeddingChronicle` (default on); DevMode lever in the chat window's Dev panel ("Write
 your wedding day anew"). Decision record + the review round's eight fixes:
 docs/wedding-chronicle-design.md.
+**A GREAT DAY IS TOLD AT THE AGE IT HAPPENED** (2026.08.15, Anton: "if I remember it when im 50 i
+dont see two old ppl merrying"), and this bites in two places at once. THE SCENE: the keepsake
+replays vanilla's own wedding cutscene, which builds its people from the LIVE heroes —
+`UI\WeddingSceneReplay` now overrides `GetSceneNotificationCharacters`, takes what the base built
+and REPLACES slots 0 and 1 (vanilla's order is groom, bride, monk, six audience) with the same
+people carrying an overridden `BodyProperties(new DynamicBodyProperties(ageThen, hero.Weight,
+hero.Build), hero.StaticBodyProperties)` — the exact move
+`HeirComingOfAgeSceneNotificationItem` makes to draw one child at six and again at fourteen.
+`SceneNotificationCharacter` is a readonly struct with PUBLIC fields, so vanilla's equipment (the
+bride's culture wedding dress), colours and flags ride across untouched; never reimplement the
+method, and leave the audience alone — it is whoever is alive and friendly TODAY and has no "then".
+THE WORDS: `WeddingRecord.SpouseAge`/`PlayerAge` + `BirthRecord.MotherAge`/`FatherAge` are captured
+at the hooks (the chronicler was given the bride's/mother's age and NEVER the groom's/father's —
+fixed with them), and `WeddingText`/`BirthText.TheirYearsThatDay` states the ages on the day, how
+long ago it was, and for a birth how old the child WOULD be now ("would", never "is" — the ledger
+knows what was born, not who still lives). It is a STATEMENT, never an instruction: the account is
+fixed prose, but every sheet around it at recall time is today's, which is the whole reason a
+fifty-year-old's wedding was being retold about fifty-year-olds. Records from before this say
+nothing; the SCENE still gets them right because `AgeOnThatDay` falls back to the calendar (now,
+less the years since), so there is nothing to migrate. Core keeps no calendar — `CalradiaYears.Since`
+(Module) hands it a plain number. Births have NO scene replay yet; vanilla ships
+`NewBornSceneNotificationItem` whenever that is wanted.
 
 **The birth chronicle (2026.08.10) — the next day of a life.** The wedding's own shape, turned on a
 cradle, and reusing its machinery down to the guest list (Anton's ask: "може да се преизползва много
@@ -1461,6 +1734,84 @@ modelled and a female player is only kept from crashing (`MotherOf`), his explic
 `UI\NightWindow\`, hotkey **H** (I and P are vanilla Inventory/Party). Toggle `EnableNights`;
 DevMode lever in the chat window's Dev panel ("Spend a night with them now"). Full record:
 docs/nights-and-conception-design.md.
+
+**THE VOICES (2026.08.14 the pipeline, 2026.08.15 the rest of it).** They can be HEARD: a speech
+engine on the player's own machine turns a reply into a voice they cast, or — for the far more
+common player with no card to spare — a hosted service does it on a key they already have. **OFF by
+default (`EnableVoice`) and that must never change**: it wants gigabytes and a GPU, and nobody should
+have a feature they cannot run switched on for them. Found through the **"Voices" button in the talk
+screen's bar, which shows for everybody**, plus ONE soft once-per-install notice after a reply
+(`VoiceHintShown`, written the instant it is shown so it can never repeat). The engine lives OUT OF
+PROCESS in `ImmersiveAI.VoiceHost` (net8, single file) because ggml answers bad input with
+`GGML_ASSERT → abort()`, which on the game's runtime is uncatchable — out there a crash costs a
+session's voices, in here it would cost the campaign. **Do not "simplify" it back in-process.**
+Everything degrades to silence + one log line; a voice problem never costs a word.
+- **THE ONE DOOR** is `VoiceService`: `Prewarm` (make it while they read), `Speak` (newest words win),
+  `Stop`, plus the panel's own API (`Shelf`/`Cast`/`SetDefault*`/`Preview`/`ImportFromStudio`). A
+  GENERATION COUNTER makes late audio harmless: every request carries the counter it was born under
+  and a stale one is dropped rather than played over whatever is happening now.
+- **WHICH ROAD is decided by the VOICE, never by a setting** — a cloned voice can only be spoken by
+  the engine holding its embedding, a hosted one only by the service that owns it — so a player may
+  have both and cast either on anybody. `VoicePreset.Backend` + `SpeakerName` (the model's own
+  built-ins) + `RemoteVoiceId` (hosted) are the three shapes.
+- **THE SEAM AND HOW IT WAS CLOSED** (`VoicePlayback`, rewritten 2026.08.15). A streamed reply
+  arrives a second at a time and playing N sounds left a frame of silence inside every second —
+  which is the whole reason `FullRead` existed. Three things together: the waiting pieces are POURED
+  into one file (`WavFiles.Join`, Core, unit-tested), the next sound is BUILT while the current one
+  plays, and the handover is scheduled BY THE CLOCK from the WAV's own header instead of polling
+  `IsPlaying()`, which only answers a frame late — that lateness WAS the seam. Pouring happens on a
+  background task; only the sound event is made on the game thread. **THE ENGINE IS TOUCHED FROM THE
+  GAME THREAD AND NOWHERE ELSE** — `Begin`/`StopAll` set a flag and let the next `Tick` do it.
+  With that, Streaming is strictly better than Full read and is the default (ConfigVersion **V5**
+  migrates only a config still holding the exact old default).
+- **THE DERAIL, AND THE THREE RAILS AGAINST IT.** An autoregressive model that misses its
+  end-of-speech token generates until it hits its own ceiling. This is not theoretical — it happened
+  while the numbers were being measured: **202 characters of Bulgarian became 327.68 seconds of
+  audio**, which is exactly 4096 tokens. Core `VoiceBudget` works a token ceiling out of the line's
+  own length (13 chars/second, 1.5 s grace, ×1.8) and the engine honours it TO THE SAMPLE; the host
+  also counts what it is handed and pulls the cord itself; and a generation that runs to its WHOLE
+  ceiling is judged a runaway on that fact alone, because a sentence that ends by itself practically
+  never lands on the rail to the token. A whole reply discards and retries ONCE; **a derailed clip is
+  never sealed into the cache**, or one bad synthesis is replayed for the rest of the campaign.
+  Above all that sits the player's own **panic key (`VoicePanicKey`, Backspace)**, read from the raw
+  keyboard in `SubModule.OnApplicationTick` so it works on the map, in a battle, with every window
+  shut — and only while something is speaking, so it steals nobody's Backspace.
+- **THE MEASUREMENTS ARE THE DESIGN.** One audio token = 1920 samples = **80 ms**. Streaming's first
+  audio in **427 ms**, generating ~2.5× faster than it plays. Steady state ~3.0× realtime, and the
+  FIRST call after a model load is slower — never measure once. Real speech runs 13–17 characters a
+  second, Cyrillic no slower per character. All in `docs/voiceover-engine-notes.md`; re-measure
+  before assuming any of it holds on a weaker card.
+- **`event:/Extra/voiceover` IS the game's own event** (its event table, guid
+  `{2a2e4e13-…}`, beside `Extra/external` and `Extra/voicechat`). The earlier note that the name was
+  ours and FMOD merely tolerated it was WRONG — so the first playtest's quietness had one cause, the
+  engine's own 10-20 dB low output, which the host normalises. `VoiceSoundEvent` keeps it a config
+  edit if it ever needs moving.
+- **THE HOSTED ROAD** (`CloudVoiceClient`, live-tested): OpenAI `/v1/audio/speech`, `gpt-4o-mini-tts`,
+  thirteen voices, `response_format: "wav"` → **24 kHz 16-bit mono, the same shape the local engine
+  makes**, so the cache, the joiner and the playback chain are shared with no special cases. Billed
+  through `UsageLedger.NoteVoiceMinutes` **by the minute of audio actually received** (read from the
+  WAV header), so the cost line is measured rather than estimated. **Hosted voices are never
+  PREWARMED** — audio made ahead for a ▶ nobody presses is money spent on silence — while local ones
+  stay eager.
+- **THE MODEL WRINKLE:** the nine built-in speakers live on `qwen-talker-1.7b-customvoice`, NOT on
+  the `base` model that clones and that the setup page tells people to fetch. So a player who
+  followed the instructions and made no voice of their own would find an empty shelf. `VoiceService.
+  BuiltInShelf` offers those nine when the loaded model's name says customvoice, and
+  `voiceover-setup.md` says it plainly.
+- **NEVER BUNDLE THE AUTHOR'S OWN VOICES.** Sibylla and Achilles are cloned from Jessica Alba and
+  Brad Pitt; they live on his machine and must not ship (memory note `voice-shipping-constraint`).
+- **A ▶ RIDES EVERY THREAD ROW** — replies, letters, her own inner beats, wedding/birth/night
+  accounts — via `ChatMessageVM.WithVoice`. The row holds NO audio state, on purpose: `RefreshThread`
+  allocates a fresh list on every change, so the audio is re-derived from the words with
+  `VoiceCacheKey`, which is exactly what that key exists for. Letters and inner beats speak the WORDS,
+  never the envelope furniture around them.
+- Config: `EnableVoice`, `VoiceAutoSpeak`, `VoiceDelivery` (Streaming default), `VoicePanicKey`,
+  `VoiceSpeakReachOuts` (off — one queue, several souls, one voice would cut off another),
+  `CloudVoice*`, `VoiceCacheBudgetMb`, `VoiceSoundEvent`, `VoiceEnginePath`/`VoiceModelDir`/
+  `VoiceModelName`. The casting sheet is `Voices\assignments.json` and is deliberately NOT inside the
+  campaign folder: the save-scoped snapshots photograph that folder, and rewinding a save must never
+  silently recast anybody. The test for any new file: *would rewinding this with the save be a
+  feature or a defect?*
 
 ## Work flow for the TASKs
 - Get the taks you work on from TASKS_TODO.md

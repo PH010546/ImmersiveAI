@@ -72,8 +72,52 @@ namespace ImmersiveAI
             if (_letterWorkInFlight && (DateTime.UtcNow - _letterWorkSince) > TimeSpan.FromMinutes(_config.IsLocalBackend ? 12 : 3))
                 _letterWorkInFlight = false;
 
+            HandOverLettersWhoseEndsHaveMet();
             DeliverDueLetters();
             MaybeStartNpcLetter();
+        }
+
+        // THE ROAD ENDS WHEN THE TWO ENDS MEET (Anton, 2026.08.15). A courier is faster than any
+        // column now, but he can still be out with a letter when the player simply rides up to the
+        // person it is addressed to — and then the pair stand face to face with a sealed letter
+        // travelling between them, the bond blocked from writing again (one courier per bond) and
+        // the talk screen showing a road that leads nowhere. Wherever they meet, the letter is
+        // handed over: pull its arrival forward to now and let this same tick deliver it.
+        //
+        // Both directions, and for the same reason — his letter reaches her hand, hers reaches his.
+        //
+        /// <summary>The UI's own knock: hand over any letter whose ends have met and deliver at once,
+        /// so opening the talk screen never shows a courier riding toward someone standing in front
+        /// of you. Game thread; safe to call as often as a door is opened.</summary>
+        internal static void DeliverLettersWhoseEndsHaveMet()
+        {
+            var self = Current;
+            if (self == null || self._config?.EnableLetters != true || self._letterBag == null) return;
+            if (Campaign.Current == null) return;
+
+            self.HandOverLettersWhoseEndsHaveMet();
+            self.DeliverDueLetters();
+        }
+
+        private void HandOverLettersWhoseEndsHaveMet()
+        {
+            if (_letterBag == null) return;
+
+            var now = CampaignTime.Now.ToDays;
+            bool moved = false;
+
+            foreach (var letter in _letterBag.Letters)
+            {
+                if (letter == null || letter.ArriveGameDay <= now) continue;
+
+                var npc = FindAliveHero(letter.NpcId);
+                if (npc == null || !IsCoLocated(npc)) continue;
+
+                letter.ArriveGameDay = now;
+                moved = true;
+            }
+
+            if (moved) SaveLetterBag();
         }
 
         // Hands over every letter whose road has run out — at most one per direction per hour, so
@@ -160,7 +204,14 @@ namespace ImmersiveAI
                 // difference once a campaign carries hundreds of remembered souls.
                 foreach (var known in MemoryIndex.All(root, NpcPaths.MemoryFileName, _memoryStore))
                 {
-                    if (known.Richness <= 0) continue;
+                    // THE MORNING AFTER REACHES THE POST TOO (2026.08.16). The design says she comes
+                    // to you in the morning "or writes if apart", and apart is the commoner case by
+                    // far — the wife is in the town with the house while he is wherever he was. Read
+                    // before the depth gate on purpose: a woman wed through the game's own barter and
+                    // never yet spoken with has no story to fill pages, and she is exactly the one
+                    // this is for.
+                    double spike = WoundSpikeFor(known, nowDay);
+                    if (known.Richness <= 0 && spike <= 0) continue;
                     if (_letterBag!.HasInFlightWith(known.NpcId)) continue;
 
                     var hero = FindAliveHero(known.NpcId);
@@ -182,6 +233,12 @@ namespace ImmersiveAI
                     pull *= LetterCourier.StoryDepthFactor(known.Richness)
                           * InitiationScorer.OutreachDamping(
                                 DaysSinceOrNever(known.LastOutreachGameDay, nowDay), known.UnansweredOutreach);
+                    // A FLOOR over the damped pull, exactly as the co-located roll applies it and
+                    // for exactly the same reason: multiplying a near-zero pull leaves a near-zero
+                    // pull, and the one moment this feature exists for would be eaten by ordinary
+                    // bookkeeping. The group-total law is untouched — WriteRateFactor still halves
+                    // the whole post's rate, and a louder pull only pushes UnionPull nearer 1.
+                    pull = Math.Max(pull, spike);
                     if (pull <= 0) continue;
 
                     eligible.Add(hero);
@@ -205,9 +262,13 @@ namespace ImmersiveAI
 
         // ------------------------------ the NPC writes ------------------------------
 
-        // The two beats of writing, both recorded as real inner turns: their own mind weighs whether
-        // they wish to write at all (they may decline in peace), and on a yes they sit to the letter
-        // itself — composed with the full self (persona, memory, situation-apart, even the gift of recall).
+        // ONE beat now, recorded as a real inner turn: the post's own dice have picked this writer, and
+        // they sit to the letter itself — composed with the full self (persona, memory, situation-apart,
+        // even the gift of recall). The asking step that used to stand in front of it ("do I wish, of my
+        // own will, to write now?" — a whole sheet spent on a yes or a no) went out with the reach-out
+        // ponder on 2026.08.16; the premise it set moved into the compose line. A letter still comes only
+        // when the roll says so, and a writer whose letters met silence still holds their pen — that is
+        // OutreachDamping's work, not a question's.
         private async Task BeginNpcLetterAsync(Hero npc)
         {
             // Quiet: the letter is sealed until it arrives — a cost notice now would break the seal.
@@ -218,26 +279,14 @@ namespace ImmersiveAI
                 await EnsurePersonaSparkAsync(npc, canAsk: false).ConfigureAwait(false);
 
                 var situation = SafeBuildApartSituation(npc);
-                var ctx = BuildContext(npc, situation);
 
-                var desireLine = PromptBuilder.WriteLetterDesireLine(ctx.PlayerName);
-                var desireMsgs = _promptBuilder.BuildInnerPrompt(
-                    ctx.Persona, ctx.Memory, ctx.Scene, ctx.PlayerName, desireLine, _config.SystemVoiceName);
-                var desireRaw = await _client.CompleteAsync(desireMsgs).ConfigureAwait(false);
-                var desireAnswer = string.IsNullOrWhiteSpace(desireRaw) ? "No." : desireRaw.Trim();
-
-                // Weighing whether to write rests them either way (see the reach-out desire beat).
-                AppendRecordedTurn(npc, desireLine, desireAnswer, OutreachMark.Considered);
-
-                if (!InitiationParser.WantsToReachOut(desireAnswer)) { _letterWorkInFlight = false; return; }
-
-                // They wish to. The letter is written with everything they are — and the writing is
-                // itself a remembered moment (the compose line and the letter, as an inner turn).
+                // The letter is written with everything they are — and the writing is itself a remembered
+                // moment (the compose line and the letter, as an inner turn).
                 // One in the player's own service is invited to make it a field report of their charge.
                 var composeCtx = BuildContext(npc, situation);
-                var composeLine = PromptBuilder.ComposeLetterLine(ctx.PlayerName, InPlayersService(npc));
+                var composeLine = PromptBuilder.ComposeLetterLine(composeCtx.PlayerName, InPlayersService(npc));
                 var composeMsgs = _promptBuilder.BuildInnerPrompt(
-                    composeCtx.Persona, composeCtx.Memory, composeCtx.Scene, ctx.PlayerName, composeLine, _config.SystemVoiceName);
+                    composeCtx.Persona, composeCtx.Memory, composeCtx.Scene, composeCtx.PlayerName, composeLine, _config.SystemVoiceName);
                 var bodyRaw = await CompleteSpokenAsync(composeMsgs, npc).ConfigureAwait(false);
                 var body = CleanLetterBody(bodyRaw);
                 if (body.Length == 0) { _letterWorkInFlight = false; return; }
@@ -678,22 +727,35 @@ namespace ImmersiveAI
                 Hero? blessBride = null;
                 var bless = CanBlessTroth(npc, out blessBride, byLetter: true)
                     ? new Tools.TrothTool.BlessTally { Bride = blessBride, ByLetter = true } : null;
-                var troth = bless == null && CanTendTroth(npc, byLetter: true)
-                    ? new Tools.TrothTool.Tally { ByLetter = true } : null;
+                // A head of house may instead be owed for a kinswoman leaving it — and by letter is
+                // exactly where such a thing would be settled, since he is rarely where the player is.
+                if (bless == null && CanNameHerPrice(npc, out var ransomKin, byLetter: true))
+                    bless = new Tools.TrothTool.BlessTally { Bride = ransomKin, IsRansom = true, ByLetter = true };
+
+                bool trothRides = bless == null && CanTendTroth(npc, byLetter: true);
+                bool loverRides = bless == null && CanOfferSelf(npc, byLetter: true);
+                var troth = (trothRides || loverRides)
+                    ? new Tools.TrothTool.Tally { ByLetter = true, TrothRides = trothRides, LoverRides = loverRides }
+                    : null;
                 var bargain = bless == null && troth == null && CanStrikeBargain(npc, byLetter: true)
                     ? new Tools.BargainTool.Tally { ByLetter = true } : null;
-                if (troth != null) await EnsureCourtshipReadyAsync(npc).ConfigureAwait(false);
+                // A woman may take offence in writing, and may certainly forgive in writing. The
+                // notices stay quiet until the courier arrives; the door itself moves at once.
+                var door = CanWeighTheDoor(npc, byLetter: true)
+                    ? new Tools.DoorTool.Tally { ByLetter = true } : null;
+                if (trothRides) await EnsureCourtshipReadyAsync(npc).ConfigureAwait(false);
                 // The reply flow has grown stages (spark, desire, seeding, asks, the tool-looped
                 // compose) — refresh the watchdog so a legitimate slow run is never mistaken for a
                 // lost one and doubled (review find, 2026.08.08).
                 MarkLetterWorkInFlight();
 
                 var replyCtx = BuildContext(npc, situation, bargainRides: bargain != null,
-                    trothRides: troth != null, blessBride: bless?.Bride);
+                    trothRides: trothRides, blessBride: bless?.Bride,
+                    loverRides: loverRides, ransom: bless?.IsRansom ?? false, doorRides: door != null);
                 var composeLine = PromptBuilder.ComposeReplyLine(ctx.PlayerName);
                 var composeMsgs = _promptBuilder.BuildInnerPrompt(
                     replyCtx.Persona, replyCtx.Memory, replyCtx.Scene, ctx.PlayerName, composeLine, _config.SystemVoiceName);
-                var bodyRaw = await CompleteSpokenAsync(composeMsgs, npc, null, replyCtx.Memory, bargain, troth, bless).ConfigureAwait(false);
+                var bodyRaw = await CompleteSpokenAsync(composeMsgs, npc, null, replyCtx.Memory, bargain, troth, bless, door).ConfigureAwait(false);
                 var body = CleanLetterBody(bodyRaw);
 
                 // An invited answer, not an outreach — but it still rests them (no spontaneous letter
@@ -709,13 +771,18 @@ namespace ImmersiveAI
                         // one hand rode this reply (the exclusivity above), so nothing can be dropped.
                         if (bless != null && bless.Laid)
                         {
-                            letter.LaidKind = "blessing";
+                            letter.LaidKind = bless.IsRansom ? "ransom" : "blessing";
                             letter.LaidPrice = bless.Price;
                             letter.LaidBrideId = bless.Bride?.StringId ?? string.Empty;
                         }
                         else if (troth != null && troth.LaidBetrothal)
                         {
                             letter.LaidKind = "betrothal";
+                            letter.LaidWord = troth.Word;
+                        }
+                        else if (troth != null && troth.LaidLoverBond)
+                        {
+                            letter.LaidKind = "lover";
                             letter.LaidWord = troth.Word;
                         }
                         else if (bargain != null && bargain.Laid)
@@ -748,18 +815,24 @@ namespace ImmersiveAI
             }
         }
 
-        // The letter window is the letters' home (its own "?" already points here); the old
-        // recipient-picker popups only stand in when the window is off or cannot come up.
+        // The talk screen is the letters' home now (2026.08.14 — one place for spoken words and
+        // sealed ones alike); the letter window stands in when the player kept the old shape, and
+        // the recipient-picker popups only when neither can come up.
         private void OnLetterMenuChosen()
         {
-            if (_config.EnableLetterWindow && UI.LetterWindow.LetterWindowManager.Open()) return;
+            if (_config.EnableLetters && UI.TalkUI.OpenForLetters()) return;
             OnChooseLetterRecipient();
         }
 
+        // ONE DOOR, NOT TWO (Anton, 2026.08.15). The talk screen merged speaking and letters into a
+        // single list, so a menu offering "speak with those near you" AND "send a letter by courier"
+        // — both raising the very same screen — is just the old seam showing. This option stands only
+        // while the two windows are still the shape in use (UseClassicChatWindow, or the screen
+        // having bowed out this session), where it really does open a different window.
         private bool OnLetterMenuCondition(MenuCallbackArgs args)
         {
             args.optionLeaveType = GameMenuOption.LeaveType.Conversation;
-            return _config.EnableLetters;
+            return _config.EnableLetters && !UI.TalkUI.UsesTalkScreen;
         }
 
         private void OnChooseLetterRecipient()
@@ -1110,9 +1183,9 @@ namespace ImmersiveAI
         // popups only where the window truly cannot come up.
         private void OpenWriteBack(Hero npc)
         {
-            if (_config.EnableLetterWindow)
+            if (_config.EnableLetters)
             {
-                UI.LetterWindow.LetterWindowManager.OpenWhenClear(npc, OpenLetterComposer);
+                UI.TalkUI.OpenWhenClear(npc, OpenLetterComposer);
                 return;
             }
             OpenLetterComposer(npc);
@@ -1136,7 +1209,7 @@ namespace ImmersiveAI
             var self = Current;
             if (self == null || npc == null) return;
             self._pendingLetterNotices.Remove(npc.StringId);
-            UI.LetterWindow.LetterWindowManager.OpenWhenClear(npc, self.OpenLetterComposer);
+            UI.TalkUI.OpenWhenClear(npc, self.OpenLetterComposer);
         }
 
         /// <summary>The notice went away uninspected (dismissed with X, or invalidated) — set

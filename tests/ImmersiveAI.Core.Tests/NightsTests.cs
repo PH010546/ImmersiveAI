@@ -1,4 +1,4 @@
-using ImmersiveAI.Core.Nights;
+﻿using ImmersiveAI.Core.Nights;
 using ImmersiveAI.Core.Prompts;
 
 namespace ImmersiveAI.Core.Tests;
@@ -83,16 +83,70 @@ public class NightsTests
 
         double vanillaMonthly = 1.0 - Math.Pow(1.0 - vanillaDaily, length);
 
+        // EVERY night of the cycle, not only the window's. The quiet days carry weight too, and
+        // leaving them out is precisely how the old normaliser came to be a tenth short.
         double missedEveryNight = 1.0;
         for (int day = 0; day < length; day++)
-        {
-            double f = MoodTides.Fertility(Her, day);
-            if (f <= MoodTides.QuietFertility) continue; // only the window nights are "the right moments"
             missedEveryNight *= 1.0 - NightOdds.NightlyChanceFor(Her, day, vanillaDaily);
-        }
         double oursMonthly = 1.0 - missedEveryNight;
 
-        Assert.InRange(oursMonthly, vanillaMonthly - 0.08, 1.0);
+        // TWO-SIDED, AND THAT IS THE POINT (2026.08.16). The old bound was
+        // InRange(ours, vanilla - 0.08, 1.0) — an upper limit of ONE, so the test could only ever
+        // fail if the mod were too BARREN. It could not see an overshoot, and there was a large
+        // one: the spread was additive, so the nightly chances summed to the expected COUNT of
+        // conceptions rather than the chance of at least one, and a young wife's crest was being
+        // clamped down from 66% (173% with a gift) by a rail meant only for flavour.
+        // Spreading the hazard makes the match exact rather than approximate, so this is now
+        // pinned tight from both sides.
+        Assert.Equal(vanillaMonthly, oursMonthly, 6);
+    }
+
+    [Fact]
+    public void TheMatchHoldsForEveryAgeEveryGiftAndEveryCycleLength()
+    {
+        // The invariant is provable, not fitted: sum of the hazards is the cycle's own hazard by
+        // construction, so this holds identically wherever it is sampled.
+        foreach (var who in new[] { Her, "lord_2_1_1", "companion_11", "lord_9_4_2" })
+        {
+            int length = MoodTides.CycleLength(who);
+            foreach (var vanillaDaily in new[] { 0.0139, 0.0624, 0.1104, 0.1440, 0.1872 })
+            {
+                double vanillaMonthly = 1.0 - Math.Pow(1.0 - vanillaDaily, length);
+                double missed = 1.0;
+                for (int day = 0; day < length; day++)
+                    missed *= 1.0 - NightOdds.NightlyChanceFor(who, day, vanillaDaily);
+                Assert.Equal(vanillaMonthly, 1.0 - missed, 6);
+            }
+        }
+    }
+
+    [Fact]
+    public void ACrestNightIsNoLongerPinnedAgainstTheRail()
+    {
+        // The symptom Anton reported: 85% plainly AND 85% with the grandest gift, because both
+        // readings had left probability space and were being clipped by the same ceiling.
+        const double vanillaDaily = 0.1104;                  // a childless wife of twenty-five
+        int crest = CrestDayOf(Her);
+
+        double plain = NightOdds.NightlyChanceFor(Her, crest, vanillaDaily);
+        double jewel = NightOdds.NightlyChanceFor(Her, crest, vanillaDaily, giftMultiplier: 2.0);
+
+        Assert.InRange(plain, 0.40, 0.55);
+        Assert.True(jewel > plain + 0.15, $"a gift must still be felt: {plain:P1} vs {jewel:P1}");
+        Assert.True(jewel < NightOdds.MaxNightlyChance, "and neither may sit on the rail");
+    }
+
+    private static int CrestDayOf(string who)
+    {
+        int length = MoodTides.CycleLength(who);
+        int best = 0;
+        double most = -1;
+        for (int day = 0; day < length; day++)
+        {
+            double f = MoodTides.Fertility(who, day);
+            if (f > most) { most = f; best = day; }
+        }
+        return best;
     }
 
     [Fact]
@@ -648,6 +702,62 @@ public class NightsTests
                   > prompt.IndexOf("TITLE:", StringComparison.Ordinal));
     }
 
+    // ------------------------------ what HE had in mind (2026.08.15) ------------------------------
+
+    [Fact]
+    public void ThePlayersWish_ReachesTheChronicler_AndStaysHis()
+    {
+        var facts = SomeFacts();
+        facts.PlayerWish = "I want us to spend the night under the stars, away from the walls";
+        var prompt = NightText.BuildStoryPrompt(facts);
+
+        // It arrives as a fact of the night, in his own words, marked as his.
+        Assert.Contains("What HE had in mind for this night, in his own words", prompt);
+        Assert.Contains("under the stars", prompt);
+
+        // And it arrives fenced. The first rail keeps it from being copied as prose; the second is
+        // the load-bearing one — this is the only line in the whole feature the player writes, so
+        // it is the only place he could reach past his own side of the night and script her.
+        Assert.Contains("shapes the evening as far as a man can shape one", prompt);
+        Assert.Contains("he does not write her", prompt);
+        Assert.Contains("could not be had where they actually were", prompt);
+    }
+
+    [Fact]
+    public void NoWish_LeavesThePromptExactlyAsItWas()
+    {
+        // The usual night is the overwhelmingly common one, and it must not pay a syllable for a
+        // feature it is not using — neither the fact nor its rails may appear unasked.
+        var prompt = NightText.BuildStoryPrompt(SomeFacts());
+
+        Assert.DoesNotContain("had in mind", prompt);
+        Assert.DoesNotContain("he does not write her", prompt);
+    }
+
+    [Fact]
+    public void TheWishIsKeptInHisOwnKeepsake()
+    {
+        var night = new NightRecord
+        {
+            GameDay = 91.0,
+            DateText = "Autumn 14, Year 1084",
+            WifeName = "Sibylla",
+            Kind = NightKind.Together,
+            PlaceName = "the town of Onira",
+            GiftPrice = 100,
+            GiftName = "Hot water, oil, and a table for two",
+            Wish = "I want to tell her about my mother",
+            Title = "The Table Laid For Two",
+            Story = "He had the water carried up before I came in from the yard, and the room smelled of it.",
+        };
+
+        var entry = NightText.KeepsakeEntry(night);
+        Assert.Contains("What you had in mind: I want to tell her about my mother", entry);
+
+        night.Wish = string.Empty;
+        Assert.DoesNotContain("What you had in mind", NightText.KeepsakeEntry(night));
+    }
+
     // ------------------------------ what the coin buys the writing (2026.08.10) ------------------------------
 
     [Fact]
@@ -954,5 +1064,78 @@ public class NightsTests
             Assert.DoesNotContain("%", word);
         }
         Assert.Contains("no child can come of it", NightOdds.LikelihoodWord(0.0, doorClosed: true));
+    }
+
+    // ------------------------------ the night's clock, by the sun ------------------------------
+
+    private const int Reset = NightClock.DefaultResetHour;   // 16:00
+
+    private static double At(int day, double hour) => day + hour / 24.0;
+
+    [Fact]
+    public void ACycleRunsFromOneLateAfternoonToTheNext()
+    {
+        Assert.Equal(5, NightClock.CycleOf(At(5, 16), Reset));    // the turn itself opens the cycle
+        Assert.Equal(5, NightClock.CycleOf(At(5, 21), Reset));    // the evening's question
+        Assert.Equal(5, NightClock.CycleOf(At(6, 1), Reset));     // one in the morning is still that evening
+        Assert.Equal(5, NightClock.CycleOf(At(6, 15.9), Reset));  // and so is the whole day after it
+        Assert.Equal(6, NightClock.CycleOf(At(6, 16), Reset));    // until the sun comes round again
+    }
+
+    [Fact]
+    public void TheSmallHoursBelongToTheEveningTheyGrewOutOf()
+    {
+        // THE WHOLE POINT of the cycle. A night at one in the morning used to settle the day that
+        // was only just beginning, which cost the player the entire following evening.
+        var night = At(6, 1);
+        var nextEvening = At(6, 21);
+        Assert.False(NightClock.SameCycle(night, nextEvening, Reset));
+
+        var ledger = new NightLedger();
+        ledger.SettleNight(night);
+        Assert.True(ledger.IsNightSettled(nextEvening));            // the calendar says yes...
+        Assert.False(ledger.IsCycleSettled(nextEvening, Reset));    // ...and the sun says he is free
+    }
+
+    [Fact]
+    public void ANightIsSpentOncePerCycleHoweverLateItRan()
+    {
+        var ledger = new NightLedger();
+        ledger.SettleNight(At(5, 23.5));                              // half past eleven
+        Assert.True(ledger.IsCycleSettled(At(6, 1), Reset));          // still the same evening
+        Assert.True(ledger.IsCycleSettled(At(6, 15), Reset));         // and all the next day
+        Assert.False(ledger.IsCycleSettled(At(6, 16), Reset));        // ready again at the turn
+
+        // The drift the flat cooldown had: 23.5 + 24 = 23.5 the next night, hours past the
+        // evening's own question. The sun does not drift.
+        Assert.False(ledger.IsCycleSettled(At(6, 21), Reset));
+    }
+
+    [Fact]
+    public void HoursUntilResetCountsToTheTurnAndNeverToZero()
+    {
+        Assert.Equal(1.0, NightClock.HoursUntilReset(At(5, 15), Reset), 3);
+        Assert.Equal(19.0, NightClock.HoursUntilReset(At(5, 21), Reset), 3);
+        Assert.Equal(15.0, NightClock.HoursUntilReset(At(6, 1), Reset), 3);
+        Assert.Equal(24.0, NightClock.HoursUntilReset(At(5, 16), Reset), 3);   // just missed it
+    }
+
+    [Fact]
+    public void AHandEditedResetHourCanNeverThrow()
+    {
+        foreach (var hour in new[] { -5, 0, 23, 24, 99 })
+        {
+            var cycle = NightClock.CycleOf(At(5, 12), hour);
+            var left = NightClock.HoursUntilReset(At(5, 12), hour);
+            Assert.True(cycle == 4 || cycle == 5);
+            Assert.InRange(left, 0.001, 24.0);
+        }
+    }
+
+    [Fact]
+    public void AnEmptyLedgerHasSettledNothing()
+    {
+        var ledger = new NightLedger();
+        Assert.False(ledger.IsCycleSettled(At(5, 21), Reset));
     }
 }

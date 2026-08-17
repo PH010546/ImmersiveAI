@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using TaleWorlds.CampaignSystem;
 using TaleWorlds.CampaignSystem.GameState;
 using TaleWorlds.Core;
@@ -149,8 +149,23 @@ namespace ImmersiveAI.UI.NightWindow
             try
             {
                 if (_config == null || !_config.EnableNights || !_config.EnableNightWindow) return false;
+                if (TalkScreen.TalkScreenManager.IsOpen) return false;       // one place at a time
                 if (ChatWindow.ChatWindowManager.IsOpen) return false;      // one window at a time
                 if (LetterWindow.LetterWindowManager.IsOpen) return false;
+                return KeyMayAct();
+            }
+            catch { return false; }
+        }
+
+        /// <summary>Whether the hearth key means what it says right now, or is somebody's keystroke:
+        /// the part of <see cref="CanOpenNow"/> that is about the MOMENT rather than about which of
+        /// our own windows is up. Split out 2026.08.16 so the talk-screen road cannot skip it — the
+        /// old shape returned before ever reaching these, which is how an "h" typed into the writing
+        /// box came to turn the whole screen over.</summary>
+        private static bool KeyMayAct()
+        {
+            try
+            {
                 if (Campaign.Current == null) return false;
                 if (Mission.Current != null) return false;
                 if (!(Game.Current?.GameStateManager?.ActiveState is MapState mapState)) return false;
@@ -158,7 +173,7 @@ namespace ImmersiveAI.UI.NightWindow
                 if (Hero.OneToOneConversationHero != null) return false;
                 if (InformationManager.IsAnyInquiryActive()) return false;
                 if (MapOverlays.IsEncyclopediaOpen) return false;   // typing in its search box is not a hotkey
-                if (MapOverlays.IsTypingSomewhere) return false;
+                if (MapOverlays.IsTypingSomewhere) return false;    // any focused text field holds the keys
                 return Hero.MainHero != null && Hero.MainHero.IsAlive;
             }
             catch { return false; }
@@ -182,6 +197,32 @@ namespace ImmersiveAI.UI.NightWindow
             if (_config == null || !_config.EnableNights || !_config.EnableNightWindow) return;
             if (Campaign.Current == null) return;
             if (!Input.IsKeyReleased(_hotkey)) return;
+
+            // THE HEARTH IS A MODE OF THE TALK SCREEN NOW (2026.08.16). The key is unchanged and so
+            // is everything the player knows; what it raises is the one screen, turned to the
+            // hearth — the women listed left, the chosen one ALIVE in the middle in her own place.
+            // The old window is still whole behind UseClassicChatWindow and behind the screen's own
+            // session fallback, so a game patch that breaks the tableau costs the hearth its stage
+            // and not its existence.
+            if (UI.TalkUI.UsesTalkScreen)
+            {
+                // ONCE THE SCREEN IS UP, THIS KEY IS A LETTER (Anton's playtest, 2026.08.16: open the
+                // screen after a load, start typing, and the chat vanishes — an "h" in the middle of a
+                // word turned the screen over to the hearth). The branch above was written to jump
+                // CanOpenNow because that refuses while the talk screen is open — and it jumped the
+                // typing, encyclopedia and inquiry guards with it, leaving this the only key in the
+                // whole mod that acts while the player is writing.
+                //
+                // So: nothing at all while the screen stands. Turning it over is what the "Between us"
+                // and "Talk" buttons in its own bar are for, they are always in reach, and a keyboard
+                // shortcut that shares a key with a letter inside a screen built for writing can only
+                // ever fire mid-word. Every other guard still applies to RAISING it.
+                if (TalkScreen.TalkScreenManager.IsOpen) return;
+                if (!KeyMayAct()) return;
+                TalkScreen.TalkScreenManager.Open(hearth: true);
+                return;
+            }
+
             if (!CanOpenNow()) return;
             Open();
         }

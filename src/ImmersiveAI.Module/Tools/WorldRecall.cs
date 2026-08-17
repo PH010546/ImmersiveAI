@@ -39,44 +39,48 @@ namespace ImmersiveAI.Tools
             new ToolDefinition(RecallPerson,
                 "Call to mind what is truly known of a person of the world — who they are, their kin and house, " +
                 "their standing, where word last placed them, and, if they stand before my eyes, what I see " +
-                "of their garb and arms. Reach for this whenever a person is spoken of and my memory of them " +
-                "is dim, rather than guessing.",
+                "of their garb and arms. When a person is dim in my memory I call them to mind rather than " +
+                "invent — or unbidden, at the one before me, to open with something real; where nothing " +
+                "surfaces, I say so.",
                 new[] { new ToolParameter("name", "The person's name, as best I know it.") }),
 
             new ToolDefinition(RecallCompany,
                 "Take stock of my own company — the warband I lead or ride with: how many souls it counts, " +
                 "the kinds of fighters among them, the hale and the wounded, prisoners in my train, the food " +
-                "in the wagons, the men's spirits, their wages, and what the company is presently about. Reach " +
-                "for this before ever speaking in numbers of my own men."),
+                "in the wagons, the men's spirits, their wages, and what the company is presently about. I " +
+                "always look before speaking in numbers of my own men, and unbidden too, to open with " +
+                "something real; where nothing surfaces, I say so."),
 
             new ToolDefinition(RecallPlace,
                 "Call to mind what is known of a town, castle, or village — its geographical compass direction " +
                 "and distance from where I stand, who holds it, whose realm it lies in, its walls and garrison, " +
-                "and how it fares. Reach for this whenever a place, its direction, or its distance is asked or spoken of.",
+                "and how it fares. When a place, its direction, or distance is dim in my memory I call it to " +
+                "mind rather than invent, and always before speaking in numbers of its defenses; where " +
+                "nothing surfaces, I say so.",
                 new[] { new ToolParameter("name", "The place's name, as best I know it.") }),
 
             new ToolDefinition(RecallClan,
                 "Call to mind what is known of a clan or noble house — who leads it, whom it serves, its people " +
-                "and its holdings.",
+                "and its holdings — whenever a house is dim in my memory; where nothing surfaces, I say so.",
                 new[] { new ToolParameter("name", "The clan's name, as best I know it.") }),
 
             new ToolDefinition(RecallRealm,
                 "Call to mind what is known of a realm or kingdom — who rules it, its great houses, its lands, " +
-                "and the wars it wages.",
+                "and the wars it wages — whenever a realm is dim in my memory; where nothing surfaces, I say so.",
                 new[] { new ToolParameter("name", "The realm's name, as best I know it.") }),
 
             new ToolDefinition(RecallTroop,
                 "Call to mind what is known of a kind of soldier — recruit, warrior, knight, of any people: " +
                 "how seasoned they are, their skill at arms, the gear they carry, and what they may become " +
-                "with training. Reach for this when soldiers or their worth are spoken of — and when weighing " +
-                "one kind against another, call each to mind in turn before I judge.",
+                "with training. When soldiers or their worth are spoken of I call each kind to mind in turn " +
+                "before I judge, rather than invent; where nothing surfaces, I say so.",
                 new[] { new ToolParameter("name", "The soldier kind's name, e.g. \"Vlandian Recruit\" or \"Battanian Fian\".") }),
 
             new ToolDefinition(RecallMarket,
                 "Call to mind the day's trade in the market about me — what goods truly fetch here, this " +
-                "day, in the place where I stand. Reach for this before ever quoting a price or speaking " +
-                "of what the market bears; prices shift with the seasons and the wars, and yesterday's " +
-                "figure is a lie by morning.",
+                "day, in the place where I stand. I always look before quoting a price or speaking of what " +
+                "the market bears; prices shift with the seasons and the wars, and yesterday's figure is " +
+                "a lie by morning. Where nothing surfaces, I say so.",
                 new[] { new ToolParameter("item", "One good to price — grain, tools, wine, a horse. Leave it out to survey the market's staples.", required: false) }),
         };
 
@@ -861,6 +865,14 @@ namespace ImmersiveAI.Tools
             Try(() => party = asker.PartyBelongedTo);
             if (party == null)
             {
+                // NO WARBAND ON THE MAP IS NOT THE SAME AS NOBODY AT YOUR BACK (2026.08.16). A gang
+                // leader's command is his alley and the knives who hold it — real men, mustered by
+                // the game's own alley model, who never become a MobileParty. Reading only
+                // PartyBelongedTo told Akadan the Widow-maker, holding his own ground in Odokh,
+                // that "no company rides with me now", and he said so to the player's face.
+                var street = DescribeStreetCompany(asker);
+                if (street.Length > 0) return street;
+
                 string kept = null;
                 Try(() => kept = asker.GovernorOf?.Settlement?.Name?.ToString());
                 return kept != null
@@ -989,6 +1001,83 @@ namespace ImmersiveAI.Tools
         }
 
         // What the company is presently about, read from its errand on the map.
+        /// <summary>
+        /// The following of one who keeps no warband: the alleys a gang leader holds and the knives
+        /// who hold them for him. Read from the game's own ledger — never guessed, and never rolled
+        /// afresh, so the count does not jitter between one reply and the next.
+        /// <para>
+        /// TWO GUARDS, both load-bearing. The alley model reads <c>alley.Owner.Power</c> unchecked,
+        /// so it may only ever be handed an alley whose owner IS the asker; and the player's own
+        /// alleys are kept by a different behaviour entirely, so the player is skipped outright.
+        /// </para>
+        /// </summary>
+        // "a, b and c" — the same courtesy the persona builders extend everywhere else.
+        private static string Listed(List<string> items)
+        {
+            if (items == null || items.Count == 0) return string.Empty;
+            if (items.Count == 1) return items[0];
+            return string.Join(", ", items.Take(items.Count - 1)) + " and " + items[items.Count - 1];
+        }
+
+        private static string DescribeStreetCompany(Hero asker)
+        {
+            try
+            {
+                if (asker == null || asker == Hero.MainHero) return string.Empty;
+                var alleys = asker.OwnedAlleys;
+                if (alleys == null || alleys.Count == 0) return string.Empty;
+
+                var places = new List<string>();
+                var counts = new Dictionary<string, int>();
+                int total = 0;
+
+                foreach (var alley in alleys)
+                {
+                    if (alley == null || alley.Owner != asker) continue;
+                    var where = alley.Name?.ToString();
+                    var town = alley.Settlement?.Name?.ToString();
+                    if (!string.IsNullOrWhiteSpace(where))
+                        places.Add(string.IsNullOrWhiteSpace(town) ? where : $"{where} in {town}");
+
+                    Try(() =>
+                    {
+                        var roster = Campaign.Current?.Models?.AlleyModel?.GetTroopsOfAIOwnedAlley(alley);
+                        if (roster == null) return;
+                        foreach (var entry in roster.GetTroopRoster())
+                        {
+                            var kind = entry.Character?.Name?.ToString();
+                            if (string.IsNullOrWhiteSpace(kind) || entry.Number <= 0) continue;
+                            counts.TryGetValue(kind, out int had);
+                            counts[kind] = had + entry.Number;
+                            total += entry.Number;
+                        }
+                    });
+                }
+
+                if (places.Count == 0) return string.Empty;
+
+                var lines = new List<string>
+                {
+                    $"No warband rides under me upon the road — my ground is {Listed(places)}, and it is held for me."
+                };
+                if (total > 0)
+                {
+                    lines.Add($"Some {total} answer to me there.");
+                    var ranks = counts.OrderByDescending(kv => kv.Value)
+                        .Take(4)
+                        .Select(kv => $"{kv.Value} {kv.Key}")
+                        .ToList();
+                    if (ranks.Count > 0) lines.Add("They are: " + Listed(ranks) + ".");
+                }
+                else
+                {
+                    lines.Add("What men hold it for me at this hour I could not swear to.");
+                }
+                return string.Join(" ", lines);
+            }
+            catch { return string.Empty; }
+        }
+
         private static string CompanyDoing(MobileParty party)
         {
             if (party.MapEvent != null)

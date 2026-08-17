@@ -16,6 +16,19 @@ public class LetterSystemTests
     }
 
     [Fact]
+    public void TravelDays_ACourierOutridesAnyColumn()
+    {
+        // The one law of the post (Anton, 2026.08.15): the player must never outrun their own letter
+        // and arrive before it. Light cavalry riding hard makes about 190 map units a day; a single
+        // horseman with fresh mounts has to beat that over any road worth riding.
+        const double fastestPartyUnitsPerDay = 190.0;
+        Assert.True(LetterCourier.UnitsPerDay > fastestPartyUnitsPerDay);
+
+        foreach (var distance in new[] { 20.0, 100.0, 400.0, 900.0 })
+            Assert.True(LetterCourier.TravelDays(distance) < distance / fastestPartyUnitsPerDay + LetterCourier.MinDays);
+    }
+
+    [Fact]
     public void TravelDays_UnknownDistance_IsAMiddlingRoadNotADoorstep()
     {
         Assert.Equal(LetterCourier.MaxDays / 2, LetterCourier.TravelDays(-1));
@@ -132,10 +145,10 @@ public class LetterSystemTests
     [Fact]
     public void LetterLines_CarryTheNamesAndTheWords()
     {
-        Assert.Contains("Aeron", PromptBuilder.WriteLetterDesireLine("Aeron"));
-        Assert.Contains("yes or no", PromptBuilder.WriteLetterDesireLine("Aeron"));
-
+        // The spontaneous letter opens straight at the page now (2026.08.16 — no "do I wish to write?"
+        // call in front of it), so the road and the waiting courier are part of the writing itself.
         Assert.Contains("Aeron", PromptBuilder.ComposeLetterLine("Aeron"));
+        Assert.Contains("a courier stands ready", PromptBuilder.ComposeLetterLine("Aeron"));
 
         var read = PromptBuilder.AnswerLetterDesireLine("Aeron", "Meet me at Sargot.");
         Assert.Contains("Aeron", read);

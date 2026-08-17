@@ -68,6 +68,15 @@ namespace ImmersiveAI
         // useful for long replies — instead of a bare "(considers your words...)". Updated on every line.
         private volatile string? _lastNpcLine;
 
+        // The one line the reply dialog's consequence is allowed to SPEAK, and whose it is. Armed only
+        // where real new words are put into the panel, and taken once by whoever speaks them. Deliberately
+        // not _lastNpcLine: the await loop also resolves with no new words at all — a cancelled "what do
+        // you say?" box, an empty send — and speaking _lastNpcLine there would put her PREVIOUS reply (or
+        // her opening greeting) into the room over a panel reading "(You decide to say nothing.)". The
+        // error road arms nothing on purpose, so a raw exception message is never read aloud in her voice.
+        private Hero? _lineToSpeakNpc;
+        private string? _lineToSpeak;
+
         // The environmental facts (when/where/who) captured when the player opened this chat. Written
         // to current_situation_info.txt and reused as the scene context for every turn of this
         // conversation, so what the player inspects on disk is exactly what the NPC's prompt carries.
@@ -129,12 +138,11 @@ namespace ImmersiveAI
 
         private readonly struct PendingNotice
         {
-            public PendingNotice(double offeredGameDay, string situation, string greeting = "", string reason = "")
+            public PendingNotice(double offeredGameDay, string situation, string greeting = "")
             {
                 OfferedGameDay = offeredGameDay;
                 Situation = situation;
                 Greeting = greeting ?? string.Empty;
-                Reason = reason ?? string.Empty;
             }
             public double OfferedGameDay { get; }
             public string Situation { get; }
@@ -142,9 +150,6 @@ namespace ImmersiveAI
             /// as the opening line when the player clicks the notice into a conversation. Empty for the
             /// accept/decline path, whose greeting is generated only after the player accepts.</summary>
             public string Greeting { get; }
-            /// <summary>The cause the NPC resolved on when they chose to come (the ponder's "GO: reason") —
-            /// carried into the approach narration so the words open about the thing that brought them.</summary>
-            public string Reason { get; }
         }
 
         // How long a parked notice waits before the moment passes on its own.
@@ -154,8 +159,7 @@ namespace ImmersiveAI
         {
             Current = this;
             _config = config;
-            UI.ChatWindow.ChatWindowManager.Configure(config);
-            UI.LetterWindow.LetterWindowManager.Configure(config);
+            UI.TalkUI.Configure(config);
             UI.NightWindow.NightWindowManager.Configure(config);
             UI.Socialness.SocialnessManager.Configure(config);
             _client = ChatClientFactory.Create(config);
@@ -174,7 +178,16 @@ namespace ImmersiveAI
         // counsel of the far-seeing sages (a web search, resolved off-thread). Every spoken path
         // goes through here; short utility calls (the feeling number, the yes/no of a reaching-out)
         // stay on plain CompleteAsync, where a recall would only slow the answer down.
-        private Task<string> CompleteSpokenAsync(IReadOnlyList<ChatMessage> messages, Hero npc, Tools.HeartTool.Tally? heart = null, NpcMemory? liveMemory = null, Tools.BargainTool.Tally? bargain = null, Tools.TrothTool.Tally? troth = null, Tools.TrothTool.BlessTally? bless = null, Tools.QuestTool.Tally? quest = null)
+        /// <summary>Exactly which hands ride along with a spoken reply to this soul. Factored out of
+        /// <see cref="CompleteSpokenAsync"/> so that the talk screen's scrollback can show the player
+        /// the SAME list the model is really given (2026.08.14) — a preview that drifts from the
+        /// truth is worse than no preview at all.</summary>
+        // No `heart` parameter on purpose: the heart's hand rides on CanMoveHeart(), never on whether
+        // a tally was handed in — so the preview can ask for the list without inventing one.
+        private List<ToolDefinition> GatherSpokenTools(Hero npc,
+            Tools.BargainTool.Tally? bargain = null, Tools.TrothTool.Tally? troth = null,
+            Tools.TrothTool.BlessTally? bless = null, Tools.DoorTool.Tally? door = null,
+            Tools.QuestTool.Tally? quest = null)
         {
             var tools = new List<ToolDefinition>();
             if (CanRecallWorld()) tools.AddRange(Tools.WorldRecall.Tools);
@@ -198,13 +211,32 @@ namespace ImmersiveAI
             // trunk, and the letter-answer flow — a promise or a price can be agreed in writing too).
             // The misgivings' hand rides wherever the troth's does: her own written doubts about the
             // marriage, tended by her alone (the retired matchmaker's checkable asks, unrobotted).
-            if (troth != null) { tools.Add(Tools.TrothTool.Tend); tools.Add(Tools.MisgivingTool.Tool); }
-            if (bless != null) tools.Add(Tools.TrothTool.Bless);
+            if (troth != null && troth.TrothRides) { tools.Add(Tools.TrothTool.Tend); tools.Add(Tools.MisgivingTool.Tool); }
+            // The lover's fork rides the SAME tally and its own narrow gate: only where her heart has
+            // already walked the shared trunk and gone deeper than any marriage gate asks. The two
+            // branches can ride together — a woman may be courted toward a wedding and reach for
+            // something else instead, and refusing to model that would be the mod choosing for her.
+            if (troth != null && troth.LoverRides) tools.Add(Tools.LoverTool.Offer);
+            if (bless != null) tools.Add(bless.IsRansom ? Tools.LoverTool.NamePrice : Tools.TrothTool.Bless);
+            // Her hand on the door rides wherever there is a bed to be shut out of — a wife or a
+            // lover, face to face or in writing. It is the only way anything on that list ever
+            // moves, in either direction, so it must never be quietly absent.
+            if (door != null) tools.Add(Tools.DoorTool.Tool);
             if (quest != null)
             {
                 if (Tools.QuestTool.GetAvailableIssue(npc) != null) tools.Add(Tools.QuestTool.AcceptTool);
                 if (Tools.QuestTool.GetActiveQuest(npc) != null) tools.Add(Tools.QuestTool.ReportTool);
             }
+            return tools;
+        }
+
+        private Task<string> CompleteSpokenAsync(IReadOnlyList<ChatMessage> messages, Hero npc,
+            Tools.HeartTool.Tally? heart = null, NpcMemory? liveMemory = null,
+            Tools.BargainTool.Tally? bargain = null, Tools.TrothTool.Tally? troth = null,
+            Tools.TrothTool.BlessTally? bless = null, Tools.DoorTool.Tally? door = null,
+            Tools.QuestTool.Tally? quest = null)
+        {
+            var tools = GatherSpokenTools(npc, bargain, troth, bless, door, quest);
             if (tools.Count == 0)
                 return _client.CompleteAsync(messages);
 
@@ -214,10 +246,12 @@ namespace ImmersiveAI
 
             // The heart's hand and the personal hands (the bargain, the troth) are not recalls:
             // they keep at least one round even when the recall budget is zeroed out.
-            int rounds = (heartRides || bargain != null || troth != null || bless != null || quest != null) ? Math.Max(1, _config.MaxRecallsPerReply) : _config.MaxRecallsPerReply;
+            bool heartRides = CanMoveHeart();
+            int rounds = (heartRides || bargain != null || troth != null || bless != null || door != null || quest != null)
+                ? Math.Max(1, _config.MaxRecallsPerReply) : _config.MaxRecallsPerReply;
             return ToolLoopRunner.RunAsync(
                 _client, messages, tools,
-                call => ResolveToolAsync(call, npc, heart, liveMemory, recentContext, bargain, troth, bless, quest),
+                call => ResolveToolAsync(call, npc, heart, liveMemory, recentContext, bargain, troth, bless, door, quest),
                 rounds);
         }
 
@@ -241,8 +275,11 @@ namespace ImmersiveAI
         // Routes one tool call to its resolver, announcing the activity to the player first so the
         // wait is never silent ("remembering…", "researching…"). The heart's shift gets no notice
         // of its own — the colored relation line that follows IS the notice.
-        private Task<string> ResolveToolAsync(Core.Llm.ToolCall call, Hero npc, Tools.HeartTool.Tally? heart, NpcMemory? liveMemory, string recentContext, Tools.BargainTool.Tally? bargain = null, Tools.TrothTool.Tally? troth = null, Tools.TrothTool.BlessTally? bless = null, Tools.QuestTool.Tally? quest = null)
+        private Task<string> ResolveToolAsync(Core.Llm.ToolCall call, Hero npc, Tools.HeartTool.Tally? heart, NpcMemory? liveMemory, string recentContext, Tools.BargainTool.Tally? bargain = null, Tools.TrothTool.Tally? troth = null, Tools.TrothTool.BlessTally? bless = null, Tools.DoorTool.Tally? door = null, Tools.QuestTool.Tally? quest = null)
         {
+            if (call.Name == Tools.DoorTool.WeighWhatStands)
+                return Task.FromResult(ResolveWeighTheDoor(call, npc, door, liveMemory));
+
             if (call.Name == Tools.HeartTool.MoveHeart)
                 return Task.FromResult(ResolveHeartShift(call, npc, heart));
 
@@ -257,6 +294,12 @@ namespace ImmersiveAI
 
             if (call.Name == Tools.TrothTool.BlessMarriage)
                 return Task.FromResult(ResolveBlessLay(call, npc, bless));
+
+            if (call.Name == Tools.LoverTool.OfferMyself)
+                return Task.FromResult(ResolveOfferSelf(call, npc, troth, liveMemory));
+
+            if (call.Name == Tools.LoverTool.NameHerPrice)
+                return Task.FromResult(ResolveRansomLay(call, npc, bless));
 
             if (call.Name == Tools.QuestTool.AcceptQuest)
                 return Task.FromResult(ResolveAcceptQuest(call, npc, quest));
@@ -560,7 +603,7 @@ namespace ImmersiveAI
                     "I entered their service — a companion of their company now, my keep on their purse. " +
                     "They hired me; I ride with them.",
                     string.Empty, OutreachMark.PlayerEngaged);
-                UI.ChatWindow.ChatWindowManager.OnThreadChanged(npc, markUnread: false);
+                UI.TalkUI.OnThreadChanged(npc, markUnread: false);
             }
             catch (Exception ex)
             {
@@ -894,6 +937,15 @@ namespace ImmersiveAI
         // after a quest talk, a bargain, or words on the road.
         private void OnConversationEnded(IEnumerable<CharacterObject> characters)
         {
+            // Walking away ends the voice with the talk. Without this she goes on speaking into an
+            // empty room — or worse, over whatever the player turned to next. An armed line that was
+            // never shown dies with the talk too: a conversation cut short by something other than a
+            // click would otherwise leave it waiting for the NEXT talk's await loop to resolve, and
+            // one soul's words would come out of another's mouth.
+            Voice.VoiceService.Stop();
+            _lineToSpeakNpc = null;
+            _lineToSpeak = null;
+
             // A talk we forced onto the map may have spun up a PlayerEncounter just to host the
             // scene; finish it (next tick, once the conversation has fully unwound) or the player
             // lands in the engage-party menu against the very person they were chatting with.
@@ -1065,13 +1117,25 @@ namespace ImmersiveAI
             // Enter the free-chat flow from the normal conversation hub. When recap is enabled we
             // pause on a greeting state first (and kick off the recap); otherwise we drop straight
             // into the say/leave menu.
+            // THE UNIFIED DOOR (Anton, 2026.08.14). From a conversation begun on the MAP, "Speak
+            // freely" no longer runs the talk inside the vanilla panel: it steps out of the dialog
+            // and into the talk screen, on this very soul — the same words and the same memory, but
+            // in the place where their whole story stands and everyone else is one click away.
+            //
+            // Only from the map. Inside a settlement's own scene the screen is a layer over a world
+            // the player is physically standing in and cannot cover it, so there the panel loop
+            // below still carries the talk, exactly as it always has.
+            starter.AddPlayerLine("immersiveai_start_screen", "hero_main_options", "close_window",
+                "{=ImmersiveAI_Speak}Speak freely with me.",
+                ShowsTalkScreenDoor, OnOpenTalkScreenFromDialog, 120);
+
             if (_config.EnableConversationRecap)
             {
                 // Priority 120: the door to the mod sits at the very top of the vanilla hub
                 // (Anton's ask, 2026.08.08 — the chat option first, the farewell last).
                 starter.AddPlayerLine("immersiveai_start", "hero_main_options", "immersiveai_greet",
                     "{=ImmersiveAI_Speak}Speak freely with me.",
-                    () => Hero.OneToOneConversationHero != null, OnChatOpened, 120);
+                    () => Hero.OneToOneConversationHero != null && !ShowsTalkScreenDoor(), OnChatOpened, 120);
 
                 // Greet state, recap is in -> the NPC delivers it, then we fall into the menu.
                 // Registered before the "still recalling" line so it wins when the condition holds.
@@ -1090,7 +1154,7 @@ namespace ImmersiveAI
             {
                 starter.AddPlayerLine("immersiveai_start", "hero_main_options", "immersiveai_input",
                     "{=ImmersiveAI_Speak}Speak freely with me.",
-                    () => Hero.OneToOneConversationHero != null, OnChatOpenedNoRecap, 120);
+                    () => Hero.OneToOneConversationHero != null && !ShowsTalkScreenDoor(), OnChatOpenedNoRecap, 120);
             }
 
             // Menu option: say something -> shows the text box, then goes to the await state.
@@ -1203,11 +1267,14 @@ namespace ImmersiveAI
             starter.AddPlayerLine("immersiveai_bye", "immersiveai_input", "close_window",
                 "{=ImmersiveAI_Done}Farewell.", null, RequestLeaveFromPartyEncounter, 85);
 
-            // Await state, reply is in -> show it and return to the menu.
-            // Registered before the "still thinking" line so it wins when the condition holds.
             // Priority 300: shields the private await state against any external mod (e.g. Homesteads) event hijacking.
+            // The fourth argument is the CONSEQUENCE, and it is the honest moment to speak: the line
+            // is set long before this, but the panel does not show it until the player clicks to
+            // advance. Speak at generation and the voice arrives while the box still reads "..." —
+            // for however long they pause. The audio is normally already cached by then (Prewarm ran
+            // off-thread the moment the reply landed), so this is a cache hit, not a wait.
             starter.AddDialogLine("immersiveai_reply", "immersiveai_await", "immersiveai_input",
-                "{=!}{" + ResponseVar + "}", () => _responseReady, null, 300);
+                "{=!}{" + ResponseVar + "}", () => _responseReady, SpeakTheShownLine, 300);
 
             // (RequestLeaveFromPartyEncounter lives below with the other encounter care —
             // every close_window line above must carry it, or a map-party talk ends in the
@@ -1256,6 +1323,194 @@ namespace ImmersiveAI
             var hint = new TextObject("{=ImmersiveAI_Thinking}(considers your words...)").ToString();
             var last = _lastNpcLine;
             return string.IsNullOrWhiteSpace(last) ? hint : last.Trim() + "\n\n" + hint;
+        }
+
+        /// <summary>
+        /// Whether an answer that has just landed should say itself, given whether the player is
+        /// looking at that thread.
+        /// <para>
+        /// Watching, it always may: the words are on screen and the voice belongs to them. NOT
+        /// watching used to mean silence — "a voice from a conversation they walked away from is a
+        /// ghost in the room" — and Anton asked for the reverse (2026.08.15): he wants to send a
+        /// line, shut the screen, ride on, and HEAR the answer. So it is a switch of its own
+        /// (<see cref="ModConfig.VoiceSpeakWhenClosed"/>) rather than a change of the old rule, and
+        /// it rides the auto-speak switch above it — with that off, nothing anywhere speaks unasked.
+        /// </para>
+        /// </summary>
+        private bool ShouldSpeakNow(bool viewing)
+        {
+            if (!Voice.VoiceService.AutoSpeakEnabled) return false;
+            return viewing || _config.VoiceSpeakWhenClosed;
+        }
+
+        /// <summary>Speaks the words the panel is showing this very moment, once, if a voice was cast
+        /// for them — the reply line's consequence. Everything about it is guarded: this runs inside
+        /// the engine's own conversation state machine, where a thrown exception is not a mute NPC but
+        /// a dialog that cannot advance.</summary>
+        private void SpeakTheShownLine()
+        {
+            try
+            {
+                var npc = _lineToSpeakNpc;
+                var line = _lineToSpeak;
+                _lineToSpeakNpc = null;
+                _lineToSpeak = null;
+
+                // The auto-speak switch binds here too, and that is a decision, not an oversight.
+                // There is no play mark in the vanilla panel, so with it off this road is simply
+                // silent — which is what the switch says on the tin. Letting the panel speak anyway
+                // because "the click is the ask" would mean turning voices off still left one place
+                // talking, and that is the kind of small lie a player never forgives a setting for.
+                if (npc != null && !string.IsNullOrWhiteSpace(line) && Voice.VoiceService.AutoSpeakEnabled)
+                    Voice.VoiceService.Speak(npc, line!);
+            }
+            catch (Exception ex) { ModLog.Error("voice: speaking the shown line", ex); }
+        }
+
+        /// <summary>Whether this conversation should hand the talk over to the TALK SCREEN rather
+        /// than run it in the vanilla panel (2026.08.14). True only for a talk begun on the map with
+        /// the screen in use: a mission is a place the player physically stands in, and a map layer
+        /// cannot cover it.</summary>
+        private bool ShowsTalkScreenDoor()
+        {
+            try
+            {
+                return Hero.OneToOneConversationHero != null
+                       && UI.TalkUI.UsesTalkScreen
+                       && Mission.Current == null;
+            }
+            catch { return false; }
+        }
+
+        // Leaves the vanilla dialog and raises the screen on this soul.
+        //
+        // THEY GREET FIRST HERE, exactly as the panel has always done (Anton, 2026.08.15). The two
+        // roads had drifted apart in a way that read as a bug: approach someone on the map and the
+        // screen opened on silence, waiting for you to write; visit an artisan in a town — where the
+        // screen cannot open over a scene the player is standing in — and the old panel had them
+        // greet you properly. Same act, two different receptions.
+        //
+        // The distinction that survives is not which window it is but WHETHER YOU APPROACHED THEM.
+        // Walking up to somebody and saying "let us speak" is an arrival and deserves a greeting;
+        // pulling the screen up on the hotkey is the quick word it was always meant to be, and stays
+        // write-first with no ceremony and no call spent on a greeting nobody asked for.
+        private void OnOpenTalkScreenFromDialog()
+        {
+            var npc = Hero.OneToOneConversationHero;
+            if (npc == null) return;
+
+            // The dialog is closing this very frame; the screen waits for the map to be clear of it.
+            PartFromMapEncounter();
+            UI.TalkUI.OpenWhenClear(npc);
+
+            if (_config?.EnableConversationRecap != true) return;
+
+            // Held busy for the same reason a reply holds it: two writers on one memory file lose
+            // each other's turn, and nothing stops the player typing while she is drawing breath.
+            // It also gives the screen its "considers…" line instead of an empty thread.
+            if (!_quickChatBusy.Add(npc.StringId)) return;
+
+            // The situation snapshot is captured here now, as the panel road does: with a greeting
+            // being made, this is no longer "only a meeting". PrepareChat also stamps the beat
+            // marker, so ConversationEnded does not ALSO write its silent meeting note for a
+            // conversation that is about to carry a real recorded arrival.
+            if (PrepareChat() == null) { _quickChatBusy.Remove(npc.StringId); return; }
+            _ = GreetOnTalkScreenAsync(npc);
+        }
+
+        // STEPPING OUT OF THE DIALOG MUST ALSO STEP OUT OF THE ENCOUNTER (Anton's playtest,
+        // 2026.08.15: "I click a party, speak freely, close the screen — and we are in a fighting
+        // encounter"). Clicking a band on the map opens a PlayerEncounter and the conversation runs
+        // inside it; vanilla's own partings all set LeaveEncounter, so the encounter finishes with the
+        // dialog. Ours only closed the window, leaving the encounter in Wait — which raises the
+        // stand-off menu the moment the map is live again, and the talk screen was simply covering it.
+        //
+        // NOT while at war and NOT once blades are out: there LeaveEncounter would be a free escape
+        // from a fight the player rode into, and the stand-off menu is the honest state, not a bug.
+        // (Nor from inside walls — that talk owns no encounter to leave.)
+        private static void PartFromMapEncounter()
+        {
+            try
+            {
+                if (PlayerEncounter.Current == null) return;
+                if (Settlement.CurrentSettlement != null) return;
+                if (MobileParty.MainParty?.MapEvent != null) return;
+
+                var theirFaction = PlayerEncounter.EncounteredParty?.MapFaction;
+                var ourFaction = Hero.MainHero?.MapFaction;
+                if (theirFaction != null && ourFaction != null && theirFaction.IsAtWarWith(ourFaction)) return;
+
+                PlayerEncounter.LeaveEncounter = true;
+            }
+            catch { /* a talk that cannot tidy the map still gets to happen */ }
+        }
+
+        /// <summary>
+        /// Her greeting when the player has walked up to her and the talk screen is opening — the
+        /// same beat <see cref="RecapAsync"/> records for the conversation panel, put where the
+        /// screen will draw it instead of into a dialog variable.
+        /// </summary>
+        private async Task GreetOnTalkScreenAsync(Hero npc)
+        {
+            using var _cost = UsageLedger.BeginInteraction("greeting", npc?.Name?.ToString());
+            try
+            {
+                if (npc == null) return;
+
+                // A first meeting may first receive its spark, so her very first words carry it.
+                await EnsurePersonaSparkAsync(npc, canAsk: true).ConfigureAwait(false);
+
+                var ctx = BuildContext(npc);
+                var arrivalLine = PromptBuilder.ArrivalLine(
+                    ctx.PlayerName, firstMeeting: !PromptBuilder.HasRememberedHistory(ctx.Memory));
+                var messages = _promptBuilder.BuildInnerPrompt(
+                    ctx.Persona, ctx.Memory, ctx.Scene, ctx.PlayerName, arrivalLine, _config.SystemVoiceName);
+
+                var rawReply = await CompleteSpokenAsync(messages, npc).ConfigureAwait(false);
+                var greeting = (rawReply ?? string.Empty).Trim();
+                if (greeting.Length == 0)
+                {
+                    ReleaseGreetingHold(npc);
+                    return;                            // silence is better than an invented "..."
+                }
+
+                AppendRecordedTurn(npc, arrivalLine, greeting);
+                _lastNpcLine = greeting;
+
+                MainThreadDispatcher.Enqueue(() =>
+                {
+                    _quickChatBusy.Remove(npc.StringId);
+                    MarkMetInWorldsEyes(npc);
+                    UI.TalkUI.OnThreadChanged(npc, markUnread: false);
+
+                    // The same rule a reply follows. The ready-ping still fires when they are not
+                    // looking, whether or not it also speaks: the notice is the way BACK to the
+                    // thread, and hearing a greeting is no substitute for being able to find it.
+                    bool watching = UI.TalkUI.IsViewing(npc);
+                    if (!watching) NotifyReplyReady(npc);
+                    if (ShouldSpeakNow(watching))
+                        Voice.VoiceService.Speak(npc, greeting);
+                });
+            }
+            catch (Exception ex)
+            {
+                // A greeting that fails costs the greeting and nothing else: the screen is already
+                // up and the player can simply speak first, which is what it did before this existed.
+                ModLog.Warn("greeting on the talk screen: " + ex.Message);
+                ReleaseGreetingHold(npc);
+            }
+        }
+
+        /// <summary>Lets the player speak again after a greeting that produced nothing. On the game
+        /// thread, because the set is touched from there everywhere else.</summary>
+        private void ReleaseGreetingHold(Hero? npc)
+        {
+            if (npc == null) return;
+            MainThreadDispatcher.Enqueue(() =>
+            {
+                _quickChatBusy.Remove(npc.StringId);
+                UI.TalkUI.OnThreadChanged(npc, markUnread: false);
+            });
         }
 
         // Runs the moment the player picks "Speak freely" (before the greet state is shown), so the
@@ -1562,9 +1817,19 @@ namespace ImmersiveAI
                 var feltShift = outcome.FeltShift;
                 _lastNpcLine = reply; // so the next "Say something..." keeps this line readable while typing
 
+                // Start making the sound while we are still off the game thread. Prewarm only fills
+                // the cache — nothing is heard yet, because in the face-to-face panel the words are
+                // not on screen until the player clicks to advance the line. Speaking here would put
+                // her voice in the room while the box still reads "...".
+                Voice.VoiceService.Prewarm(npc, reply);
+
                 MainThreadDispatcher.Enqueue(() =>
                 {
                     MBTextManager.SetTextVariable(ResponseVar, reply, false);
+                    // Armed for the reply line's consequence, which fires when these very words go up
+                    // on the panel. Nothing else that resolves the await loop may take it.
+                    _lineToSpeakNpc = npc;
+                    _lineToSpeak = reply;
                     _responseReady = true;
 
                     // Fold the felt shift into the real standing on the game thread (state + UI), after
@@ -1655,15 +1920,30 @@ namespace ImmersiveAI
             Hero? blessBride = null;
             var bless = CanBlessTroth(npc, out blessBride)
                 ? new Tools.TrothTool.BlessTally { Bride = blessBride } : null;
+            // And the same head of a house may instead be owed for a kinswoman who is leaving it
+            // for the player with no wedding in it. The two never ride together: they are opposite
+            // errands about the same woman, and the blessing is the one with a road ahead of it.
+            if (bless == null && CanNameHerPrice(npc, out var ransomKin))
+                bless = new Tools.TrothTool.BlessTally { Bride = ransomKin, IsRansom = true };
+
             // The troth's hand — and, first, the road's one-time readiness: a soul with a real
             // lived story is seeded from it ("where does my heart already stand"), and a soul on
             // the road receives her quiet asks from the matchmaker's ledger.
-            var troth = bless == null && CanTendTroth(npc) ? new Tools.TrothTool.Tally() : null;
-            if (troth != null) await EnsureCourtshipReadyAsync(npc).ConfigureAwait(false);
+            bool trothRides = bless == null && CanTendTroth(npc);
+            bool loverRides = bless == null && CanOfferSelf(npc);
+            var troth = (trothRides || loverRides)
+                ? new Tools.TrothTool.Tally { TrothRides = trothRides, LoverRides = loverRides } : null;
+            if (trothRides) await EnsureCourtshipReadyAsync(npc).ConfigureAwait(false);
             var quest = CanBridgeQuests(npc) ? new Tools.QuestTool.Tally() : null;
 
+            // Her hand on the door — the only thing that ever moves what stands between them, in
+            // either direction. It rides beside everything else rather than instead of it: a wife
+            // may take offence and move her heart in the same breath, and so may a person.
+            var door = CanWeighTheDoor(npc) ? new Tools.DoorTool.Tally() : null;
+
             var ctx = BuildContext(npc, situationOverride, bargainRides: bargain != null,
-                trothRides: troth != null, blessBride: bless?.Bride);
+                trothRides: trothRides, blessBride: bless?.Bride,
+                loverRides: loverRides, ransom: bless?.IsRansom ?? false, doorRides: door != null);
             var memory = ctx.Memory;
 
             // The opening greeting (if any) is already a recorded turn in the loaded memory,
@@ -1674,7 +1954,7 @@ namespace ImmersiveAI
             // The live memory rides along so a mid-reply hand upon it (a misgiving set down, a
             // courtship step) lands in the same instance this turn will record into and save —
             // the end-of-exchange save can never clobber it.
-            var rawReply = await CompleteSpokenAsync(messages, npc, heart, memory, bargain, troth, bless, quest).ConfigureAwait(false);
+            var rawReply = await CompleteSpokenAsync(messages, npc, heart, memory, bargain, troth, bless, door, quest).ConfigureAwait(false);
             var reply = string.IsNullOrWhiteSpace(rawReply) ? "..." : rawReply.Trim();
 
             // How the exchange moved her heart. In the tool shape she moves it herself mid-reply
@@ -1825,6 +2105,17 @@ namespace ImmersiveAI
                             sb.Append(" · no misgivings");
                     }
                 }
+                // And the road's other branch, worn just as openly (2026.08.15). A bond the player
+                // cannot see is worse than a rail he cannot see: this one changed a life, and the
+                // line is the only place outside her own words that says so.
+                var loverLine = LoverStandingLine(npc);
+                if (!string.IsNullOrEmpty(loverLine)) sb.Append(" · ").Append(loverLine);
+
+                // And what stands between them, counted plainly, so a player can watch a spiral
+                // getting deeper without opening anything.
+                var doorLine = DoorLabelFor(npc);
+                if (!string.IsNullOrEmpty(doorLine)) sb.Append(" · ").Append(doorLine);
+
                 // Why the quiet, in a word: waiting on an answer, or simply resting after a visit paid.
                 if (known != null && known.UnansweredOutreach > 0)
                     sb.Append($" · awaits your answer ({known.UnansweredOutreach} unanswered)");
@@ -1978,6 +2269,7 @@ namespace ImmersiveAI
 
         private void NotifyReplyReady(Hero npc)
         {
+            NudgeAboutVoicesOnce();
             if (!_config.NotifyWhenReplyReady) return;
             try
             {
@@ -1985,6 +2277,37 @@ namespace ImmersiveAI
                 InformationManager.DisplayMessage(new InformationMessage($"{name} has answered.", ReplyReadyColor));
             }
             catch { /* the notice is a nicety; never let it break a turn */ }
+        }
+
+        /// <summary>
+        /// ONCE, EVER, PER INSTALL: a soft line saying the words can also be heard.
+        /// <para>
+        /// Voices are off by default and must never become a thing a player has to turn off to be
+        /// left alone (Anton, 2026.08.15) — but a feature nobody knows about is a feature nobody has,
+        /// and the store page is not where somebody mid-conversation is looking. So it is said once,
+        /// after an answer has actually arrived (the moment it is obvious what would be spoken), and
+        /// then never again — the flag is written to config.json the same instant, so it survives a
+        /// crash and cannot repeat.
+        /// </para>
+        /// <para>
+        /// Deliberately quiet about HOW: it names the button, not the setup. Anyone curious opens
+        /// Voices and the panel explains itself; anyone who is not, never hears about it again.
+        /// </para>
+        /// </summary>
+        private void NudgeAboutVoicesOnce()
+        {
+            try
+            {
+                if (_config == null || _config.VoiceHintShown || _config.EnableVoice) return;
+
+                _config.VoiceHintShown = true;
+                _config.Save();
+
+                InformationManager.DisplayMessage(new InformationMessage(
+                    "Their words can also be heard aloud — see \"Voices\" when you next speak with someone.",
+                    ActivityColor));
+            }
+            catch { /* a hint that cannot be shown is not worth a second thought */ }
         }
 
         // Optionally writes an NPC's spoken line to the message log (opt-in via ShowConversationInMessageLog,
@@ -2179,19 +2502,38 @@ namespace ImmersiveAI
             catch { return null; }
         }
 
-        // A co-located soul's pull: their bond's own weight (frequency × closeness × recency) lifted to at
-        // least the stranger's floor, so presence alone is enough to sometimes cross the room. Reads the
-        // memory file only when one exists — a stranger costs no disk. For a stranger far above the
-        // player's station the floor shrinks (see StrangerStationFactor): a king does not often cross a
-        // room for an unknown; once any true history exists, station no longer gates the bond.
+        // A co-located soul's pull: their bond's own weight (frequency × closeness × recency, chilled by
+        // any ill feeling) lifted to at least the stranger's floor — itself chilled the same way — so
+        // presence alone is enough to sometimes cross the room. Reads the memory file only when one
+        // exists — a stranger costs no disk. For a stranger far above the player's station the floor
+        // shrinks (see StrangerStationFactor): a king does not often cross a room for an unknown; once
+        // any true history exists, station no longer gates the bond.
         private double CoLocatedPull(Hero hero, double nowDay)
         {
-            double floor = _config.InitiationPullFloor;
+            double hearth = HearthFactor(hero);
+
+            // THE COLD BITES THE PRESENCE FLOOR TOO (2026.08.16), and it has to, or the change means
+            // nothing where it matters most: the floor exists so mere presence can move a STRANGER
+            // across a room, and a wife who has come to hate the player is not a stranger. Left
+            // unchilled it would hold her at the stranger's 0.1 — then the hearth's ×4.5 would make
+            // the coldest bond in the campaign louder than most warm ones. The wound spike is applied
+            // over the finished pull and stays untouched by design (see InitiationScorer.Coldness).
+            double chill = InitiationScorer.Coldness(GetStanding(hero));
+            double floor = _config.InitiationPullFloor * chill;
 
             // The cached index instead of re-parsing the file every hour (self-invalidates on
             // the file's write stamp, so a just-saved exchange is seen at once).
             var known = MemoryIndex.Get(NpcPaths.MemoryFile(hero), _memoryStore);
-            if (known == null || known.Richness <= 0) return floor * StrangerStationFactor(hero);
+            double spike = WoundSpikeFor(known, nowDay);
+            if (known == null || known.Richness <= 0)
+                // Station never stands between the player and their own household — you do not hold a
+                // queen's rank against your own wife, and a stranger-wife is precisely who the hearth
+                // factor exists to bring across the room.
+                // The wound floors this branch too (2026.08.16): the spike's own comment says it is
+                // for the bond with almost no pull of its own, "because the woman who most needs to
+                // say something is very often the one who has been talked to least" — and she is
+                // precisely who lands here, since learning of it is what created her file at all.
+                return Math.Max(floor * hearth * (hearth > 1.0 ? 1.0 : StrangerStationFactor(hero)), spike);
 
             double daysSince = known.LastTalkGameDay >= 0
                 ? Math.Max(0, nowDay - known.LastTalkGameDay)
@@ -2199,15 +2541,93 @@ namespace ImmersiveAI
             // The damping multiplies AFTER the presence floor: a soul who just came knocking (or whose
             // knocks the player left unanswered) rests below it — else the floor would re-arm the very
             // repetition the damping exists to stop (the 2026.07.26 tune-down).
-            return Math.Max(floor, InitiationScorer.Pull(known.Richness, GetStanding(hero), daysSince))
+            double pull = Math.Max(floor, InitiationScorer.Pull(known.Richness, GetStanding(hero), daysSince))   // both already chilled
                  * InitiationScorer.OutreachDamping(
-                       DaysSinceOrNever(known.LastOutreachGameDay, nowDay), known.UnansweredOutreach);
+                       DaysSinceOrNever(known.LastOutreachGameDay, nowDay), known.UnansweredOutreach)
+                 * hearth;
+
+            // AND THE MORNING AFTER (2026.08.15) rides LAST, as a floor over the damped pull, which
+            // is a deliberate exception to the paragraph above. A woman who has just learned where
+            // he was must be able to come and say so even if she reached out about something else
+            // yesterday — otherwise the single most important moment this feature has is silently
+            // eaten by ordinary bookkeeping. It is spent the instant she goes (NoteOutreach clears
+            // the stamp), so it can move her once and never twice.
+            return Math.Max(pull, spike);
+        }
+
+        /// <summary>How hard a fresh wound is pushing her right now; 0 when nothing is fresh. Read
+        /// off the cached index, never a file — this runs for every co-located soul, every hour.</summary>
+        private static double WoundSpikeFor(MemoryIndex.Entry known, double nowDay)
+        {
+            if (known == null || known.FreshWoundDay < 0) return 0;
+            return InitiationScorer.WoundSpike((nowDay - known.FreshWoundDay) * 24.0);
         }
 
         // Days since a remembered game-day stamp, or -1 ("never") when the stamp itself is -1/unset —
         // the shape InitiationScorer.OutreachDamping distinguishes on.
         private static double DaysSinceOrNever(double gameDay, double nowDay)
             => gameDay >= 0 ? Math.Max(0, nowDay - gameDay) : -1;
+
+        // ------------------------------ the two hearths ------------------------------
+        //
+        // Not everyone near the player stands at the same distance from their fire (Anton, 2026.08.15).
+        // The one they are WED TO is the hearth of this whole mod, and a companion is the second; the
+        // nobles and townsfolk about them are simply the world. ONE ranking serves two masters on
+        // purpose — how likely they are to come, and where they sit in the talk screen's list — because
+        // the player seeing the wife pinned to the top and then never hearing from her would be the
+        // mod saying two different things about the same relationship.
+
+        /// <summary>0 = the world, 1 = the player's own household, 2 = a lover, 3 = the one they are
+        /// wed to. The two upper rungs sort the talk screen's list — wife pinned on top, lovers
+        /// right under her (2026.08.15, the design record's own ordering) — while
+        /// <see cref="HearthFactor"/> decides what each rung is worth to the reach-out roll, and
+        /// deliberately does NOT give a lover the wife's multiplier.</summary>
+        internal static int HearthRank(Hero? hero)
+        {
+            try
+            {
+                if (hero == null || hero == Hero.MainHero || !hero.IsAlive) return 0;
+
+                // NEVER a bare Spouse check: a polygamy mod parks living wives in ExSpouses, and the
+                // second wife is exactly the soul this rank exists for (see FamilyBuilder.AreWed).
+                if (Personas.FamilyBuilder.AreWed(hero, Hero.MainHero)) return 3;
+                if (IsLoverOfPlayer(hero)) return 2;
+
+                return hero.Clan != null && hero.Clan == Clan.PlayerClan ? 1 : 0;
+            }
+            catch { return 0; }
+        }
+
+        /// <summary>What that rank multiplies a soul's pull by. Applied to the WHOLE pull, presence
+        /// floor included, so "even with no history" is true — and after the outreach damping, which
+        /// still bites: the damping multiplies toward zero, and 4.5 × nothing is nothing. A wife who
+        /// knocked an hour ago is as quiet as anyone else who did.</summary>
+        /// <summary>The rung in a word, for the developer's odds view.</summary>
+        private static string HearthWord(int rank)
+        {
+            switch (rank)
+            {
+                case 3: return "wedded to you";
+                case 2: return "yours without vows";
+                case 1: return "of your own household";
+                default: return "of the world";
+            }
+        }
+
+        private static double HearthFactor(Hero? hero)
+        {
+            switch (HearthRank(hero))
+            {
+                case 3: return InitiationScorer.SpouseHearthFactor;
+                // A LOVER SITS BETWEEN THEM, and closer to the household than to the wife. Anton's
+                // number was for the one he is WED to — "she is the hearth of this mod" — and
+                // handing a lover the same 4.5 would quietly make the fall louder than the
+                // marriage, which is the opposite of everything this batch is for.
+                case 2: return InitiationScorer.LoverHearthFactor;
+                case 1: return InitiationScorer.CompanionHearthFactor;
+                default: return 1.0;
+            }
+        }
 
         // How readily a STRANGER of this station approaches the player: 1 for equals and commoners,
         // fading for great lords far above an unknown player (two tiers → 0.4, more → 0.25; a crowned
@@ -2233,9 +2653,49 @@ namespace ImmersiveAI
             catch { return null; }
         }
 
-        // "Same place" as the player: travelling in the player's own party (companions, family), or present
-        // in the same settlement the player is currently in. This keeps a reached-out conversation naturally
-        // face-to-face — anyone farther away writes instead (the letter flow in the Letters partial).
+        // HOW NEAR IS NEAR ENOUGH TO HAIL SOMEBODY. Not a number of ours — the GAME'S own, doubled.
+        //
+        // The first cut guessed 5 map units from the mod's "close at hand" prose band, and that was
+        // ten times too far: two bands with a plain gap of daylight between them on screen counted as
+        // standing together (Anton's playtest, 2026.08.15). The honest measure was already in the
+        // engine — EncounterModel.NeededMaximum*DistanceForEncounteringMobileParty is the radius at
+        // which two parties BUMP INTO each other: 0.5 on land, 1.5 at sea for ships. Hailing someone
+        // should be just a little further than colliding with them, so it is that radius doubled,
+        // which also means it follows the sea, and follows any mod that reshapes the model.
+        private const float HailReachOverBumpRadius = 2f;
+
+        /// <summary>Floor for the above, and the answer when the model cannot be read at all — the
+        /// base game's own land radius doubled, so a missing model never means "nobody is ever near".</summary>
+        private const float MinSpeakingDistance = 1f;
+
+        private static float SpeakingDistance()
+        {
+            try
+            {
+                var model = Campaign.Current?.Models?.EncounterModel;
+                if (model == null) return MinSpeakingDistance;
+
+                var main = MobileParty.MainParty;
+                float bump = main != null && main.IsCurrentlyAtSea
+                    ? model.NeededMaximumNavalDistanceForEncounteringMobileParty
+                    : model.NeededMaximumLandDistanceForEncounteringMobileParty;
+
+                float reach = bump * HailReachOverBumpRadius;
+                return reach < MinSpeakingDistance ? MinSpeakingDistance : reach;
+            }
+            catch { return MinSpeakingDistance; }
+        }
+
+        // "Same place" as the player: travelling in the player's own party (companions, family), present
+        // in the same settlement the player is currently in, or — since 2026.08.15 — riding their own
+        // band all but touching yours on the open map. That third road was missing entirely: the check
+        // knew only parties and settlements, so a lord whose party you had ridden right up to was "away
+        // across the map", greyed out of the talk screen and answerable only by courier (Anton's
+        // playtest). It is deliberately a HAIL, not a shout across a valley — see SpeakingDistance.
+        //
+        // A soul inside SOME OTHER settlement is deliberately not reached this way, however near its
+        // walls stand — that is what the settlement branch above is for. Anyone camped outside the gates
+        // of the town the player is in, though, has no settlement of their own and is simply close by.
         private static bool IsCoLocated(Hero npc)
         {
             try
@@ -2247,11 +2707,25 @@ namespace ImmersiveAI
 
                 var playerSettlement = Hero.MainHero?.CurrentSettlement ?? main.CurrentSettlement;
                 var npcSettlement = npc.CurrentSettlement ?? npc.PartyBelongedTo?.CurrentSettlement;
-                if (playerSettlement == null || npcSettlement == null || playerSettlement != npcSettlement)
-                    return false;
-                return !IsBehindClosedDoors(npc, npcSettlement);
+                if (playerSettlement != null && npcSettlement != null)
+                    return playerSettlement == npcSettlement && !IsBehindClosedDoors(npc, npcSettlement);
+
+                return IsWithinSpeakingDistance(npc, main);
             }
             catch { return false; }
+        }
+
+        // The open-road branch: their own band, out under the same sky, near enough to ride over. An
+        // army marching together counts whatever the spacing of its parties happens to be that frame.
+        private static bool IsWithinSpeakingDistance(Hero npc, MobileParty main)
+        {
+            var theirs = npc?.PartyBelongedTo;
+            if (theirs == null || theirs.CurrentSettlement != null || npc!.CurrentSettlement != null)
+                return false;
+
+            if (theirs.Army != null && theirs.Army == main.Army) return true;
+
+            return theirs.Position.Distance(main.Position) <= SpeakingDistance();
         }
 
         // A soul may share the settlement yet sit behind doors the guards will not open: the lord's
@@ -2280,65 +2754,48 @@ namespace ImmersiveAI
             catch { return false; }   // fail open: a model hiccup must never silence a whole keep
         }
 
-        // The reaching-out as beats the NPC actually lives and remembers, never hidden from them. First
-        // their own mind weighs — privately — whether they wish to go to the player at all, and the
-        // resolution is recorded as a real inner turn. Only on a yes is the player offered the choice; the
-        // approach itself (welcomed, or too busy) is narrated and answered afterward, once the player has
-        // decided — see DeliverApproachAsync via OnInitiationAccepted / OnInitiationDeclinedByPlayer.
+        // The reaching-out as beats the NPC actually lives and remembers, never hidden from them. The
+        // roll has already chosen them and there is no asking any more (2026.08.16 — see the retirement
+        // note over PromptBuilder's first-word lines): they simply cross and speak, or, in the offer
+        // shape, the moment is put to the player and their approach is narrated once the choice is
+        // made — see DeliverApproachAsync via OnInitiationAccepted / OnInitiationDeclinedByPlayer.
+        //
+        // Which means the offer shape now costs NOTHING until the player says yes: a knock the player
+        // waves off is no longer paid for in tokens, where the ponder used to bill for it in advance.
         private async Task BeginInitiationAsync(Hero npc)
         {
-            // Quiet: a notice here would reveal her private weighing before (or without) any knock.
+            // Quiet: the words themselves are billed where they are made (the first word, the approach).
             using var _cost = UsageLedger.BeginInteraction("reaching out", npc?.Name?.ToString(), quiet: true);
             try
             {
-                // A stranger crossing the room for the first time is a first interaction too — the
-                // spark is seeded before the ponder, so even the wish to approach carries it.
+                // A stranger crossing the room for the first time is a first interaction too — the spark
+                // is seeded before a single word, so even their opening carries it.
                 await EnsurePersonaSparkAsync(npc, canAsk: false).ConfigureAwait(false);
 
                 // Capture the situation now and reuse it for the beats to come; the offer pauses the game,
-                // so the moment does not drift between the asking and the answering. The NEARBY shape:
-                // the player is about their own affairs, not arriving — the meeting shape's closing
-                // "And now X comes to me" contradicted the very question of whether to go to them.
+                // so the moment does not drift between the knock and the answering. The NEARBY shape: the
+                // player is about their own affairs, not arriving — the meeting shape's closing "And now X
+                // comes to me" would contradict a soul who is the one doing the crossing.
                 var situation = SafeBuildNearbySituation(npc);
-                var ctx = BuildContext(npc, situation);
 
-                // Their own mind weighs the moment — no Angel here since 2026.07.26 (the tender framing
-                // bred emotional small-talk approaches): the full sheet (news, mood, duty, memory) plus a
-                // sober "have I real cause?" answered STAY or "GO: reason". A stranger is reminded they
-                // have never spoken, so no history is imagined. (The flag is taken BEFORE the ponder beat
-                // is recorded — that beat itself must not turn a stranger into an acquaintance.)
-                var stranger = !PromptBuilder.HasRememberedHistory(ctx.Memory);
-                var ponderLine = PromptBuilder.ReachOutPonderLine(ctx.PlayerName, stranger);
-                var ponderMsgs = _promptBuilder.BuildInnerPrompt(
-                    ctx.Persona, ctx.Memory, ctx.Scene, ctx.PlayerName, ponderLine, _config.SystemVoiceName);
-                var ponderRaw = await _client.CompleteAsync(ponderMsgs).ConfigureAwait(false);
-                var resolution = string.IsNullOrWhiteSpace(ponderRaw) ? "No." : ponderRaw.Trim();
+                // A stranger is told plainly that they have never spoken, so no history is imagined. Read
+                // BEFORE any beat of this reaching-out is recorded — the beat must not turn a stranger
+                // into an acquaintance halfway through their own first sentence.
+                var stranger = !PromptBuilder.HasRememberedHistory(LoadMemory(npc));
 
-                // The weighing itself rests them for a while (OutreachMark.Considered) whatever they chose:
-                // a STAY must not leave them the likeliest pick again next hour, and a GO whose notice
-                // the player never reaches should still not turn into an hourly knock (the delivery beat
-                // below marks the true outreach on top of this). Memory keeps the condensed note, not the
-                // working instruction — the resolution beside it carries their own stated cause.
-                AppendRecordedTurn(npc, PromptBuilder.ReachOutPonderNote(ctx.PlayerName, stranger), resolution,
-                    OutreachMark.Considered, ConversationTurn.InnerSpeaker);
-
-                if (!InitiationParser.WantsToGo(resolution, out var reason)) { PassOnInitiation(npc); return; }
-
-                // They resolved to go — the cause rides with them into the words they open with. In the
-                // speak-first shapes (face-to-face or chat-window) they simply come and speak — their
-                // greeting is recorded now and a notice parked; clicking it either opens the face-to-face
-                // conversation or the window, per config. Otherwise the moment is offered to the player
-                // first and the approach narrated once they decide.
+                // In the speak-first shapes (face-to-face or chat-window) they simply come and speak —
+                // their words are recorded now and a notice parked; clicking it either opens the
+                // face-to-face conversation or the window, per config.
                 if (SpeaksFirstOnInitiation)
                 {
-                    await DeliverFirstWordAsync(npc, situation, stranger, reason).ConfigureAwait(false);
+                    await DeliverFirstWordAsync(npc, situation, stranger).ConfigureAwait(false);
                     return;
                 }
-                MainThreadDispatcher.Enqueue(() => ShowInitiationOffer(npc, situation, reason));
+                MainThreadDispatcher.Enqueue(() => ShowInitiationOffer(npc, situation));
             }
             catch
             {
-                // A failed asking simply means no one reaches out this hour; never surface it to the player.
+                // A reaching-out that would not come simply did not happen this hour; never surface it.
                 _initiationInFlight = false;
             }
         }
@@ -2384,18 +2841,10 @@ namespace ImmersiveAI
             catch { /* best-effort */ }
         }
 
-        // The NPC weighed reaching out and let the moment pass. The player asked to still be told, so a
-        // quiet, faced notice lets them know she considered it. Clears the in-flight flag.
-        private void PassOnInitiation(Hero npc)
-        {
-            var name = npc.Name?.ToString() ?? "Someone";
-            var they = npc.IsFemale ? "she" : "he";
-            MainThreadDispatcher.Enqueue(() =>
-            {
-                NotifyWithFace(npc, $"{name} considered reaching out to you, but {they} let the moment pass.");
-                _initiationInFlight = false;
-            });
-        }
+        // PassOnInitiation — the faced "…considered reaching out to you, but let the moment pass" notice —
+        // is gone with the ponder that produced it (2026.08.16). It was the player-facing face of a call
+        // spent on a refusal; there is no refusal to report now, and a soul whose words simply never come
+        // back (a dead key, a timeout) is not a story beat, so nothing at all is shown for it.
 
         private string SafeBuildSituation(Hero npc)
         {
@@ -2404,7 +2853,8 @@ namespace ImmersiveAI
         }
 
         // The reach-out shape of the situation: the player nearby, about their own affairs — nothing
-        // yet passing between them — so the ponder's premise and the sheet's closing breath agree.
+        // yet passing between them — so the crossing they are about to make and the sheet's closing
+        // breath agree, instead of the sheet announcing an arrival that has not happened.
         private string SafeBuildNearbySituation(Hero npc)
         {
             try { return SituationBuilder.BuildNearby(npc, Hero.MainHero, _config); }
@@ -2416,7 +2866,7 @@ namespace ImmersiveAI
         // the player clicks it (ShowInitiationInquiry then presents the real choice). When the
         // notice UI is unavailable (Harmony failed, or turned off in config), the choice inquiry
         // is shown directly, as it always was. Runs on the game thread.
-        private void ShowInitiationOffer(Hero npc, string situation, string reason = "")
+        private void ShowInitiationOffer(Hero npc, string situation)
         {
             try
             {
@@ -2428,7 +2878,7 @@ namespace ImmersiveAI
 
                 if (_config.UseMapNoticeForInitiations && UI.MapNoticePatch.Applied)
                 {
-                    _pendingNotices[npc.StringId] = new PendingNotice(CampaignTime.Now.ToDays, situation, reason: reason);
+                    _pendingNotices[npc.StringId] = new PendingNotice(CampaignTime.Now.ToDays, situation);
                     Campaign.Current.CampaignInformationManager.NewMapNoticeAdded(
                         new UI.ImmersiveChatMapNotification(npc,
                             new TextObject("{=!}" + name + " wishes to speak with you.")));
@@ -2439,7 +2889,7 @@ namespace ImmersiveAI
                     return;
                 }
 
-                ShowInitiationInquiry(npc, situation, reason);
+                ShowInitiationInquiry(npc, situation);
             }
             catch (Exception ex)
             {
@@ -2450,17 +2900,12 @@ namespace ImmersiveAI
 
         // The accept/decline inquiry itself — reached by clicking the map notice, or directly when
         // the notice UI is unavailable. Pauses like a ransom broker's offer so it is a real choice.
-        // The cause the currently-offered approach was resolved on (one inquiry up at a time; the
-        // parked notices each carry their own in PendingNotice.Reason until clicked).
-        private string _currentApproachReason = string.Empty;
-
-        private void ShowInitiationInquiry(Hero npc, string situation, string reason = "")
+        private void ShowInitiationInquiry(Hero npc, string situation)
         {
             try
             {
                 _initiationNpc = npc;
                 _currentSituation = situation;
-                _currentApproachReason = reason ?? string.Empty;
 
                 var name = npc.Name?.ToString() ?? "Someone";
                 var them = npc.IsFemale ? "her" : "him";
@@ -2520,8 +2965,8 @@ namespace ImmersiveAI
             if (!IsCoLocated(npc))
             {
                 InformationManager.DisplayMessage(new InformationMessage(
-                    $"Immersive AI: {npc.Name} is no longer near — their words wait in the chat window."));
-                if (self._config?.EnableChatWindow == true) UI.ChatWindow.ChatWindowManager.Open(npc);
+                    $"Immersive AI: {npc.Name} is no longer near — their words wait for you."));
+                if (self._config?.EnableChatWindow == true) UI.TalkUI.Open(npc);
                 return;
             }
 
@@ -2534,12 +2979,12 @@ namespace ImmersiveAI
 
             if (self.UsesChatWindowInitiations)
             {
-                UI.ChatWindow.ChatWindowManager.Open(npc);
+                UI.TalkUI.Open(npc);
                 return;
             }
 
             self.MarkInitiationInFlight();
-            self.ShowInitiationInquiry(npc, pending.Situation, pending.Reason);
+            self.ShowInitiationInquiry(npc, pending.Situation);
         }
 
         /// <summary>The notice went away uninspected (dismissed with X, expired, or invalidated) —
@@ -2638,15 +3083,14 @@ namespace ImmersiveAI
             using var _cost = UsageLedger.BeginInteraction("approach", npc?.Name?.ToString());
             try
             {
-                var reason = _currentApproachReason;
                 var ctx = BuildContext(npc, _currentSituation);
-                var approachLine = PromptBuilder.ApproachLine(ctx.PlayerName, welcomed, reason);
+                var approachLine = PromptBuilder.ApproachLine(ctx.PlayerName, welcomed);
                 var messages = _promptBuilder.BuildInnerPrompt(
                     ctx.Persona, ctx.Memory, ctx.Scene, ctx.PlayerName, approachLine, _config.SystemVoiceName);
                 var raw = await CompleteSpokenAsync(messages, npc).ConfigureAwait(false);
                 var npcLine = string.IsNullOrWhiteSpace(raw) ? "..." : raw.Trim();
 
-                AppendRecordedTurn(npc, PromptBuilder.ApproachNote(ctx.PlayerName, welcomed, reason), npcLine,
+                AppendRecordedTurn(npc, PromptBuilder.ApproachNote(ctx.PlayerName, welcomed), npcLine,
                     OutreachMark.Reached, ConversationTurn.InnerSpeaker);
 
                 if (welcomed)
@@ -2882,9 +3326,16 @@ namespace ImmersiveAI
                             DaysSinceOrNever(known.LastOutreachGameDay, nowDay), known.UnansweredOutreach);
                         pull *= damping;
                         if (!coLocated) pull *= Core.Letters.LetterCourier.StoryDepthFactor(known.Richness);
+                        // The two hearths — the wedded one, then the household. Face-to-face only, the
+                        // same as the live roll; the post keeps its own duty floors instead.
+                        double hearth = coLocated ? HearthFactor(hero) : 1.0;
+                        pull *= hearth;
                         double alone = Math.Min(1, _config.DailyInitiationRate * pull);
                         (coLocated ? herePulls : awayPulls).Add(pull);
 
+                        string hearthNote = hearth > 1.0
+                            ? $", {HearthWord(HearthRank(hero))} (pull ×{hearth:0.0})"
+                            : string.Empty;
                         string quietNote = known.UnansweredOutreach > 0
                             ? $", {known.UnansweredOutreach} outreach{(known.UnansweredOutreach == 1 ? "" : "es")} of theirs unanswered (pull damped ×{damping:0.00})"
                             : damping < 0.999 ? $", resting after reaching out (pull damped ×{damping:0.00})" : "";
@@ -2892,7 +3343,7 @@ namespace ImmersiveAI
                             ? $", heart's road: {Core.Courtship.CourtshipRoad.StageName((Core.Courtship.CourtshipStage)known.CourtshipStage)}"
                             : string.Empty;
                         sb.AppendLine($"• {name}: {(coLocated ? "HERE with you" : "elsewhere (may write a letter)")}, " +
-                                      $"standing {relation}, richness {known.Richness}, last spoke {daysSince:0.#}d ago{quietNote}{roadNote}");
+                                      $"standing {relation}, richness {known.Richness}, last spoke {daysSince:0.#}d ago{hearthNote}{quietNote}{roadNote}");
                         if (coLocated)
                             sb.AppendLine($"    → pull {pull * 100:0.0}% of a full bond (alone that would be ~{alone:0.00} visits/day; here it is their share of the group's total)");
                         else
@@ -2916,7 +3367,9 @@ namespace ImmersiveAI
                         if (knownIds.Contains(hero.StringId)) continue;
                         if (!IsCoLocated(hero)) continue;
                         strangersHere++;
-                        herePulls.Add(floor * StrangerStationFactor(hero));
+                        double strangerHearth = HearthFactor(hero);
+                        herePulls.Add(floor * strangerHearth
+                                      * (strangerHearth > 1.0 ? 1.0 : StrangerStationFactor(hero)));
                     }
                     if (strangersHere > 0)
                         sb.AppendLine($"• …and {strangersHere} more soul{(strangersHere == 1 ? "" : "s")} here with you, not yet truly spoken with — each at the newcomer's pull of {floor * 100:0.#}%.");
@@ -2991,6 +3444,78 @@ namespace ImmersiveAI
             catch (Exception ex) { ModLog.Error("dev: revealing the mind", ex); }
         }
 
+        /// <summary>
+        /// VOICEOVER MILESTONE 1 — the one thing no amount of reading settles: will the game's own
+        /// audio engine play a WAV we made ourselves, from a path of our choosing?
+        /// <para>
+        /// Vanilla only ever hands FMOD Ogg files out of its own banks, so this is genuinely unknown.
+        /// Both roads are tried in one click because they lead to very different designs: the file
+        /// road needs a disk cache with pruning and file handles, while the BUFFER road — if it works
+        /// — deletes that whole subsystem and hands audio straight from memory. Whichever answers,
+        /// answers for the voice-over bus too (the player's own volume slider, mute on alt-tab, the
+        /// game's ducking), which is the reason to want the engine rather than our own player.
+        /// </para>
+        /// <para>Drop any .wav into <c>Configs\ImmersiveAI\Voices\_test\</c> and click. Delete this
+        /// whole method once the answer is written down.</para>
+        /// </summary>
+        internal static void DevTestSound(Hero npc)
+        {
+            try
+            {
+                var folder = Path.Combine(ModConfig.ConfigDirectory, "Voices", "_test");
+                if (!Directory.Exists(folder))
+                {
+                    Directory.CreateDirectory(folder);
+                    Notify($"Put a .wav in {folder} and click again.");
+                    return;
+                }
+
+                var wav = Directory.GetFiles(folder, "*.wav").FirstOrDefault();
+                if (wav == null) { Notify($"No .wav found in {folder}."); return; }
+
+                Notify($"Trying: {Path.GetFileName(wav)}");
+                ModLog.Info($"voice M1: testing playback of {wav}");
+
+                // Road 1 — the external file. "event:/" names a programmer event on FMOD's own
+                // voice-over bus; if this plays, playback costs us nothing but a path.
+                try
+                {
+                    var byFile = TaleWorlds.Engine.SoundEvent.CreateEventFromExternalFile(
+                        "event:/Extra/voiceover", wav, scene: null, is3d: false, isBlocking: false);
+                    var madeFile = byFile != null && !byFile.IsNullSoundEvent();
+                    var playedFile = madeFile && byFile!.Play();
+                    Notify($"external file: created={madeFile} playing={playedFile}");
+                    ModLog.Info($"voice M1: external file created={madeFile} play={playedFile}");
+                }
+                catch (Exception ex)
+                {
+                    Notify("external file: threw — see log.");
+                    ModLog.Error("voice M1: external file", ex);
+                }
+
+                // Road 2 — straight from memory. Zero callers in the shipped game, so TaleWorlds
+                // never tested it; if it works anyway it is worth a great deal.
+                try
+                {
+                    var bytes = File.ReadAllBytes(wav);
+                    var byBuffer = TaleWorlds.Engine.SoundEvent.CreateEventFromSoundBuffer(
+                        "event:/Extra/voiceover", bytes, scene: null, is3d: false, isBlocking: false);
+                    var madeBuffer = byBuffer != null && !byBuffer.IsNullSoundEvent();
+                    Notify($"from memory: created={madeBuffer} (not played — one at a time)");
+                    ModLog.Info($"voice M1: sound buffer created={madeBuffer} bytes={bytes.Length}");
+                }
+                catch (Exception ex)
+                {
+                    Notify("from memory: threw — see log.");
+                    ModLog.Error("voice M1: sound buffer", ex);
+                }
+            }
+            catch (Exception ex) { ModLog.Error("dev: testing sound", ex); }
+
+            void Notify(string line) =>
+                InformationManager.DisplayMessage(new InformationMessage("Immersive AI: " + line));
+        }
+
         internal static void DevRevealCourtship(Hero npc)
         {
             try { if (npc != null) Current?.RevealCourtshipFor(npc); }
@@ -3059,7 +3584,15 @@ namespace ImmersiveAI
         // the old-style face-to-face conversation (no accept/decline), and dismissing it simply leaves the
         // greeting unanswered in memory. Takes precedence over the chat-window-message shape (Anton's ask,
         // 2026.07.11). Either way the first word is recorded, so both use DeliverFirstWordAsync.
-        private bool UsesFaceToFaceInitiations => _config.OpenInitiationsFaceToFace;
+        //
+        // THE TALK SCREEN OVERRULES IT (Anton, 2026.08.15). The setting was written when the alternative
+        // was a small widget over the map and the vanilla panel was the richer of the two; the screen has
+        // since become the place where the person is actually DRAWN, so answering a knock in the old panel
+        // is now strictly the poorer road. The flag still governs the classic windows, where it means what
+        // it always meant — and it is deliberately not migrated in config.json, because it is once again
+        // the right answer the moment the screen bows out.
+        private bool UsesFaceToFaceInitiations =>
+            _config.OpenInitiationsFaceToFace && !UI.TalkUI.UsesTalkScreen;
 
         // Both reach-out shapes that speak first (record the greeting, park a notice) rather than offering
         // an accept/decline. Face-to-face wins for what the click does; the message shape is the fallback.
@@ -3121,6 +3654,12 @@ namespace ImmersiveAI
                         var duty = SituationBuilder.PartyDuty(hero, MobileParty.MainParty);
                         detail = duty == null ? "rides with you" : $"rides with you — your {duty}";
                     }
+                    else if (hero.PartyBelongedTo != null && hero.PartyBelongedTo.Army != null
+                             && hero.PartyBelongedTo.Army == MobileParty.MainParty?.Army)
+                        detail = "marches in your army";
+                    else if (hero.CurrentSettlement == null && hero.PartyBelongedTo?.CurrentSettlement == null)
+                        // Out under the same sky as you — Place() would only answer "the road" here.
+                        detail = "close at hand, with their own band";
                     else
                         detail = "here in " + SituationBuilder.Place(hero);
                     result.Add(new ChatContactInfo(hero, hasHistory, lastDay, detail, isHere: true));
@@ -3210,6 +3749,10 @@ namespace ImmersiveAI
             try
             {
                 var outcome = await ExecutePlayerTurnAsync(npc, playerInput, situation).ConfigureAwait(false);
+
+                // Still off the game thread — begin making the sound while the words travel.
+                Voice.VoiceService.Prewarm(npc, outcome.Reply);
+
                 MainThreadDispatcher.Enqueue(() =>
                 {
                     _quickChatBusy.Remove(npc.StringId);
@@ -3221,10 +3764,15 @@ namespace ImmersiveAI
                     // If the player is reading this very thread the reply appears before their eyes and a
                     // toast would only state the obvious; otherwise the ready-ping and the unread mark
                     // point the way back.
-                    bool viewing = UI.ChatWindow.ChatWindowManager.IsViewing(npc);
-                    UI.ChatWindow.ChatWindowManager.OnThreadChanged(npc, markUnread: true);
+                    bool viewing = UI.TalkUI.IsViewing(npc);
+                    UI.TalkUI.OnThreadChanged(npc, markUnread: true);
                     if (!viewing) NotifyReplyReady(npc);
                     LogConversationLine(npc, outcome.Reply);
+
+                    // Watched or not (Anton, 2026.08.15 — see ShouldSpeakNow). The prewarm above has
+                    // usually made the sound already, so a closed-window answer speaks at once.
+                    if (ShouldSpeakNow(viewing))
+                        Voice.VoiceService.Speak(npc, outcome.Reply);
                     // A bargain laid in the window is presented the same way: after the words, the
                     // seal — the native inquiry rides its own global layer (order 19501) above the
                     // window (4500), takes the keys while up, and returns them when it closes.
@@ -3240,7 +3788,7 @@ namespace ImmersiveAI
                     _quickChatBusy.Remove(npc.StringId);
                     InformationManager.DisplayMessage(new InformationMessage("Immersive AI: " + message));
                     // The words were never recorded — give them back to the player's input box.
-                    UI.ChatWindow.ChatWindowManager.OnSendFailed(npc, playerInput);
+                    UI.TalkUI.OnSendFailed(npc, playerInput);
                 });
             }
         }
@@ -3250,19 +3798,26 @@ namespace ImmersiveAI
         // either way, so whatever silence follows is part of the story she remembers: the stamps let her
         // see whether the player answered at once, later, or not at all). The toast carries the flash of
         // it ("Ava sees you and says…"); the notice stack keeps a quiet knock that opens the window.
-        private async Task DeliverFirstWordAsync(Hero npc, string situation, bool stranger, string reason = "")
+        private async Task DeliverFirstWordAsync(Hero npc, string situation, bool stranger)
         {
             using var _cost = UsageLedger.BeginInteraction("first word", npc?.Name?.ToString());
             try
             {
                 var ctx = BuildContext(npc, situation);
-                var firstWordLine = PromptBuilder.FirstWordLine(ctx.PlayerName, stranger, reason);
+                var firstWordLine = PromptBuilder.FirstWordLine(ctx.PlayerName, stranger);
                 var messages = _promptBuilder.BuildInnerPrompt(
                     ctx.Persona, ctx.Memory, ctx.Scene, ctx.PlayerName, firstWordLine, _config.SystemVoiceName);
                 var raw = await CompleteSpokenAsync(messages, npc).ConfigureAwait(false);
-                var words = string.IsNullOrWhiteSpace(raw) ? "..." : raw.Trim();
 
-                AppendRecordedTurn(npc, PromptBuilder.FirstWordNote(ctx.PlayerName, reason), words,
+                // Nothing came. Nobody is waiting on this one — no offer was accepted, no popup stands
+                // open — so the hour simply passes quietly: no beat, no toast, no knock. This is where
+                // silence lives now that it is no longer asked for (a soul CAN say nothing; what it can
+                // no longer do is be interrogated about it first), and it keeps a stumbling backend from
+                // walking up to the player and saying "...".
+                if (string.IsNullOrWhiteSpace(raw)) { MainThreadDispatcher.Enqueue(() => _initiationInFlight = false); return; }
+                var words = raw.Trim();
+
+                AppendRecordedTurn(npc, PromptBuilder.FirstWordNote(ctx.PlayerName), words,
                     OutreachMark.Reached, ConversationTurn.InnerSpeaker);
                 PersistSituation(npc, situation);
 
@@ -3274,14 +3829,25 @@ namespace ImmersiveAI
                     var opening = stranger ? $"{name} approaches you and says:" : $"{name} sees you and says:";
                     NotifyWithFace(npc, $"{opening} “{Snippet(words)}”");
 
-                    bool viewing = UI.ChatWindow.ChatWindowManager.IsViewing(npc);
-                    UI.ChatWindow.ChatWindowManager.OnThreadChanged(npc, markUnread: true);
+                    // HERE is where a reach-out speaks, and nowhere earlier: the words were made
+                    // some seconds ago on a background thread, and a voice arriving before the toast
+                    // that explains it would be a stranger talking out of an empty map.
+                    //
+                    // OFF by default, though (VoiceSpeakReachOuts), and that is a judgement rather
+                    // than caution: several souls may be moved within the same stretch of riding,
+                    // there is one queue for all of them, and Ava cutting Sibylla off mid-sentence
+                    // is worse than a quiet map. The ▶ beside her words is always there.
+                    if (_config.VoiceSpeakReachOuts && Voice.VoiceService.AutoSpeakEnabled)
+                        Voice.VoiceService.Speak(npc, words);
+
+                    bool viewing = UI.TalkUI.IsViewing(npc);
+                    UI.TalkUI.OnThreadChanged(npc, markUnread: true);
 
                     // A knock in the notice stack: in the face-to-face shape it is the door to the
                     // conversation (so it is parked even with the chat window open); in the message shape
                     // it just points back to the window, so it is skipped when the window is already open.
                     bool messageMode = !UsesFaceToFaceInitiations && UsesChatWindowInitiations;
-                    bool skipForOpenWindow = messageMode && UI.ChatWindow.ChatWindowManager.IsOpen;
+                    bool skipForOpenWindow = messageMode && UI.TalkUI.IsOpen;
 
                     if (!viewing && !skipForOpenWindow
                         && _config.UseMapNoticeForInitiations && UI.MapNoticePatch.Applied)
@@ -3324,22 +3890,66 @@ namespace ImmersiveAI
             catch { /* the flag is a courtesy to vanilla dialog; never let it cost the exchange */ }
         }
 
-        // "Speak with those near you" beside the courier option in every settlement menu — the same
-        // window the hotkey opens, for players who never learn the key.
+        // The settlement-menu door, for players who never learn the hotkey. TWO SHAPES, one showing
+        // at a time (Anton, 2026.08.15): the talk screen merged speaking and letters, so under it
+        // there is ONE option — offering both would have been two lines opening the same screen. The
+        // old pair (this one beside the courier option in the Letters partial) stands only while the
+        // classic windows are in use, where they really are two different windows.
         private void AddChatWindowMenus(CampaignGameStarter starter)
         {
+            // THE MENU TEACHES ITS KEYS (2026.08.15, Anton's ask). A player who found the door here
+            // has no way to learn there is a hotkey for it, and never presses one again. The key is
+            // read LIVE from config, exactly as the info overlays already do, so a rebound key is
+            // never advertised wrong. "{=!}" because the label is composed at runtime and there is
+            // no fixed string to localize.
             foreach (var menuId in new[] { "town", "castle", "village" })
             {
+                starter.AddGameMenuOption(menuId, "immersiveai_talk_screen_" + menuId,
+                    "{=!}Speak with those you know" + KeyHint(_config.ChatWindowHotkey),
+                    OnTalkScreenMenuCondition, _ => UI.TalkUI.Open(), false, -1, false, null);
+
                 starter.AddGameMenuOption(menuId, "immersiveai_chat_window_" + menuId,
-                    "{=ImmersiveAI_ChatWindow}Speak with those near you",
-                    OnChatWindowMenuCondition, _ => UI.ChatWindow.ChatWindowManager.Open(), false, -1, false, null);
+                    "{=!}Speak with those near you" + KeyHint(_config.ChatWindowHotkey),
+                    OnChatWindowMenuCondition, _ => UI.TalkUI.Open(), false, -1, false, null);
+
+                // And the second door, in the same voice: the hearth, where the nights and the
+                // children of this house are.
+                starter.AddGameMenuOption(menuId, "immersiveai_hearth_" + menuId,
+                    "{=!}Look to your own hearth" + KeyHint(_config.NightWindowHotkey),
+                    OnHearthMenuCondition, _ => UI.NightWindow.NightWindowManager.OpenWhenClear(null),
+                    false, -1, false, null);
             }
+        }
+
+        /// <summary>" (O)" — or nothing at all when no key is bound to it.</summary>
+        private static string KeyHint(string? key)
+        {
+            var k = (key ?? string.Empty).Trim();
+            return k.Length == 0 ? string.Empty : $" ({k})";
+        }
+
+        /// <summary>The hearth's own door in the settlement menu — shown on the same rules its
+        /// hotkey obeys, so the menu never offers a window the key would refuse to open.</summary>
+        private bool OnHearthMenuCondition(TaleWorlds.CampaignSystem.GameMenus.MenuCallbackArgs args)
+        {
+            try
+            {
+                args.optionLeaveType = TaleWorlds.CampaignSystem.GameMenus.GameMenuOption.LeaveType.Submenu;
+                return _config.EnableNights && _config.EnableNightWindow && WomenOfTheHearth().Count > 0;
+            }
+            catch { return false; }
+        }
+
+        private bool OnTalkScreenMenuCondition(TaleWorlds.CampaignSystem.GameMenus.MenuCallbackArgs args)
+        {
+            args.optionLeaveType = TaleWorlds.CampaignSystem.GameMenus.GameMenuOption.LeaveType.Conversation;
+            return _config.EnableChatWindow && UI.TalkUI.UsesTalkScreen;
         }
 
         private bool OnChatWindowMenuCondition(TaleWorlds.CampaignSystem.GameMenus.MenuCallbackArgs args)
         {
             args.optionLeaveType = TaleWorlds.CampaignSystem.GameMenus.GameMenuOption.LeaveType.Conversation;
-            return _config.EnableChatWindow;
+            return _config.EnableChatWindow && !UI.TalkUI.UsesTalkScreen;
         }
 
         // A notification banner carrying the NPC's own portrait as its face — the same faced toast the game
@@ -3366,7 +3976,8 @@ namespace ImmersiveAI
         // sceneOverride lets a background flow (an NPC reaching out) pin the exact situation it captured,
         // rather than falling back to the cached-or-rebuilt one used by an open chat.
         private ChatContext BuildContext(Hero npc, string? sceneOverride = null, bool bargainRides = false,
-            bool trothRides = false, Hero? blessBride = null)
+            bool trothRides = false, Hero? blessBride = null, bool loverRides = false, bool ransom = false,
+            bool doorRides = false)
         {
             var npcName = npc.Name?.ToString() ?? "Unknown";
 
@@ -3405,10 +4016,36 @@ namespace ImmersiveAI
             // letter knows she is betrothed), tool or no tool.
             persona.CanTendTroth = trothRides;
             persona.CourtshipTerms = BuildRoadTerms(npc, memory);
+            // The lover's fork rides the same way: the whisper only while the hand truly rides, the
+            // SECTION on every sheet once the bond stands — a woman who is his knows she is his
+            // while writing a letter as surely as while standing in front of him.
+            persona.CanOfferSelf = loverRides;
+            persona.LoverTerms = BuildLoverTerms(npc, memory);
+            // And what stands between them, which rides every sheet where a bed exists: a woman
+            // whose door is shut knows it while writing a letter as surely as face to face.
+            persona.CanWeighTheDoor = doorRides;
+            persona.DoorTerms = BuildDoorTerms(npc, memory);
+            // And how his house is spoken of — carried by the women of it, who would all know and
+            // all have a view. Empty for a house with nothing to explain, which is most houses.
+            if (BondKindOf(npc, memory) != Core.Courtship.BondKind.None)
+                persona.PlayerHouseLine = HouseOfThePlayerLine();
+            // The air of the era, carried by everyone who breathes it. Gated on the road that makes
+            // it legible: without lovers it is decoration, and nobody should pay tokens for
+            // decoration on every reply of every conversation in the game.
+            if (_config.EnableLoversRoad && _config.EnableConversationMarriage)
+                persona.EraNorm = Core.Courtship.LoverText.TheOrderOfTheWorld;
             if (blessBride != null)
             {
-                persona.CanBlessTroth = true;
-                persona.SuitorTerms = BuildSuitorTerms(npc, blessBride);
+                if (ransom)
+                {
+                    persona.CanNamePrice = true;
+                    persona.SuitorTerms = BuildRansomTerms(npc, blessBride);
+                }
+                else
+                {
+                    persona.CanBlessTroth = true;
+                    persona.SuitorTerms = BuildSuitorTerms(npc, blessBride);
+                }
             }
             // The acting-out invitation (small *gestures* apart from the words) is a config taste, not a tool.
             persona.EncourageActingOut = _config.EnableActingOut;

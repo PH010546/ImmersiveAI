@@ -1,4 +1,4 @@
-using ImmersiveAI.Core.Llm;
+﻿using ImmersiveAI.Core.Llm;
 using ImmersiveAI.Core.Memory;
 using ImmersiveAI.Core.Prompts;
 
@@ -65,34 +65,19 @@ public class PromptBuilderTests
     }
 
     [Fact]
-    public void Build_FoldsInTheCrafts_AndOffersTheFieldWhisperOnlyWhenItRides()
+    public void Build_FoldsInTheCrafts_ButNotTheFieldWhisper()
     {
         var persona = Persona();
         persona.Crafts = "What my hands and wits are honestly good at: masterly in Medicine.";
         persona.CanSurveyField = true;
         var on = new PromptBuilder().Build(persona, new NpcMemory(), "scene", "Vulgrim", "Hello")[0].Content;
         Assert.Contains("masterly in Medicine", on);
-        Assert.Contains("cast my eyes over the country", on);
 
-        var off = new PromptBuilder().Build(Persona(), new NpcMemory(), "scene", "Vulgrim", "Hello")[0].Content;
-        Assert.DoesNotContain("cast my eyes over the country", off);
+        // The field-craft guidance itself moved into the tool definitions on 2026.08.14 — the sheet
+        // carries who they are, the tool carries when to reach for it.
+        Assert.DoesNotContain("cast my eyes over the country", on);
     }
 
-    [Fact]
-    public void Build_OffersTheBargainWhisper_OnlyWhenTheBargainsHandRidesAlong()
-    {
-        // The strike_bargain whisper must ride only with the tool (an unhired sellsword facing the
-        // player, live talk) — and it must always name the two gates: THEIR plain agreement, and
-        // that nothing is settled until THEY seal it. Words alone can never hire.
-        var withTool = Persona();
-        withTool.CanStrikeBargain = true;
-        var on = new PromptBuilder().Build(withTool, new NpcMemory(), "scene", "Vulgrim", "Hello")[0].Content;
-        Assert.Contains("the bargain is mine to strike", on);
-        Assert.Contains("seal it by their own hand", on);
-
-        var off = new PromptBuilder().Build(Persona(), new NpcMemory(), "scene", "Vulgrim", "Hello")[0].Content;
-        Assert.DoesNotContain("the bargain is mine to strike", off);
-    }
 
     [Fact]
     public void ComposeLetterLine_InService_StaysARecognizedLetterBeat()
@@ -109,23 +94,26 @@ public class PromptBuilderTests
     }
 
     [Fact]
-    public void LetterDesireLine_RidesAsTheNpcsOwnMind_NoNarratorVoice()
+    public void ComposeLetterLine_RidesAsTheNpcsOwnMind_NoNarratorVoice_AndCarriesTheRoadItself()
     {
         // The Angel narrator is retired (2026.08.07): every letter beat is the NPC's own first-person
-        // mind, framed through BuildInnerPrompt exactly like the reach-out ponders.
+        // mind, framed through BuildInnerPrompt. The asking step in front of it is retired too
+        // (2026.08.16), so the premise it used to set — the long road, the waiting courier — has to
+        // ride here, and AFTER the opening marker fragment or the beat stops being recognized.
         var memory = new NpcMemory();
         memory.AddTurn(new ConversationTurn { PlayerLine = "Hail, Gafnir", NpcLine = "Hail, stranger." });
 
-        var line = PromptBuilder.WriteLetterDesireLine("Vulgrim");
+        var line = PromptBuilder.ComposeLetterLine("Vulgrim");
         var messages = new PromptBuilder().BuildInnerPrompt(Persona(), memory, "In the tavern.", "Vulgrim", line, "Seraph");
 
-        // System, the one remembered player turn (user+assistant), then her own weighing as the last user turn.
+        // System, the one remembered player turn (user+assistant), then the writing itself as the last user turn.
         Assert.Equal(4, messages.Count);
         Assert.Equal(ChatRole.User, messages[3].Role);
         Assert.StartsWith("(Within my own mind:", messages[3].Content);
         Assert.DoesNotContain("Seraph", messages[3].Content);   // no voice speaks to her
-        Assert.Contains("Do I wish, of my own will, to write", messages[3].Content);
-        Assert.Contains("yes or no", messages[3].Content);       // the desire line's ask
+        Assert.Contains("a courier stands ready", messages[3].Content);
+        Assert.DoesNotContain("Do I wish", messages[3].Content); // nothing is being asked of her
+        Assert.True(PromptBuilder.IsComposeLetterBeat(line));
     }
 
     [Fact]
@@ -134,24 +122,23 @@ public class PromptBuilderTests
         var memory = new NpcMemory();
         memory.AddTurn(new ConversationTurn { PlayerLine = "Hail, Gafnir", NpcLine = "Hail, stranger." });
 
-        var line = PromptBuilder.ReachOutPonderLine("Vulgrim");
+        var line = PromptBuilder.FirstWordLine("Vulgrim");
         var messages = new PromptBuilder().BuildInnerPrompt(Persona(), memory, "In the tavern.", "Vulgrim", line, "Seraph");
 
         Assert.Equal(4, messages.Count);
         Assert.Equal(ChatRole.User, messages[3].Role);
-        Assert.StartsWith("(Within my own mind:", messages[3].Content); // their own reckoning, no Angel
+        Assert.StartsWith("(Within my own mind:", messages[3].Content); // their own moment, no Angel
         Assert.DoesNotContain("Seraph", messages[3].Content);
-        Assert.Contains("NO — or YES:", messages[3].Content);           // the plain decision it asks for
+        Assert.Contains("in my own voice", messages[3].Content);        // the words are theirs to speak
     }
 
     [Fact]
-    public void ApproachLine_ReflectsWhetherThePlayerWelcomedThem_AndCarriesTheCause()
+    public void ApproachLine_ReflectsWhetherThePlayerWelcomedThem()
     {
-        var welcomed = PromptBuilder.ApproachLine("Vulgrim", welcomed: true, reason: "the granary tally is short");
+        var welcomed = PromptBuilder.ApproachLine("Vulgrim", welcomed: true);
         var busy = PromptBuilder.ApproachLine("Vulgrim", welcomed: false);
 
         Assert.Contains("give me their attention", welcomed); // the player receives them
-        Assert.Contains("the granary tally is short", welcomed); // the resolved cause rides along
         Assert.Contains("apologetic", busy);      // the player is too caught up just now
         Assert.NotEqual(welcomed, busy);
     }
@@ -311,11 +298,11 @@ public class PromptBuilderTests
         Assert.Contains("On the road near Balgard.", system);
         Assert.Contains("You fought beside Vulgrim at Omor.", system);
         Assert.Contains("I distrust Imperial nobility.", system);
-        Assert.Contains("How should I speak:", system);
+        Assert.Contains("How I speak:", system);
     }
 
     [Fact]
-    public void SystemPrompt_PlacesWorldAndCustomInstructionsHigh_UnderFirstPersonHeadings()
+    public void SystemPrompt_PlacesWorldAndCustomInstructionsLast_AndClaimsPrecedence()
     {
         var persona = Persona();
         persona.WorldInstructions = "Magic is rare and feared in this land.";
@@ -325,17 +312,34 @@ public class PromptBuilderTests
         var system = new PromptBuilder()
             .Build(persona, memory, "On the road near Balgard.", "Vulgrim", "Hello")[0].Content;
 
-        // Both authored blocks are shown under first-person headings — the NPC's own knowledge,
+        // Both authored blocks are shown under first-person headings - the NPC's own knowledge,
         // never a narrator handing them anything.
         Assert.Contains("Of this world, this I know:", system);
         Assert.Contains("Magic is rare and feared in this land.", system);
         Assert.Contains("Of myself, this I hold true:", system);
         Assert.Contains("I distrust Imperial nobility.", system);
-
-        // ...and they ride high — before the passing scene and memory.
         Assert.True(system.IndexOf("Of this world, this I know:") < system.IndexOf("Of myself, this I hold true:"));
-        Assert.True(system.IndexOf("Of myself, this I hold true:") < system.IndexOf("On the road near Balgard."));
-        Assert.True(system.IndexOf("Of myself, this I hold true:") < system.IndexOf("What Vulgrim is to me"));
+
+        // They CLOSE the sheet (2026.08.14). Mid-sheet they were quietly losing to thousands of
+        // tokens of lived memory below them; last, and under a line that says which way a
+        // contradiction falls, is what makes an edit to them actually bite.
+        Assert.Contains(PromptBuilder.HeldTruestFrame, system);
+        Assert.True(system.IndexOf(PromptBuilder.HeldTruestFrame) < system.IndexOf("Of this world, this I know:"));
+        Assert.True(system.IndexOf("What Vulgrim is to me") < system.IndexOf(PromptBuilder.HeldTruestFrame));
+        Assert.True(system.IndexOf("On the road near Balgard.") < system.IndexOf(PromptBuilder.HeldTruestFrame));
+        Assert.True(system.IndexOf("How I speak:") < system.IndexOf(PromptBuilder.HeldTruestFrame));
+    }
+
+    [Fact]
+    public void SystemPrompt_WithNoAuthoredWords_HasNoPrecedenceFrame()
+    {
+        var persona = Persona();
+        persona.WorldInstructions = string.Empty;
+        persona.CustomInstructions = string.Empty;
+        var system = new PromptBuilder().Build(persona, new NpcMemory(), "scene", "Vulgrim", "Hi")[0].Content;
+
+        Assert.DoesNotContain(PromptBuilder.HeldTruestFrame, system);
+        Assert.DoesNotContain("Of this world, this I know:", system);
     }
 
     [Fact]
@@ -460,6 +464,39 @@ public class PromptBuilderTests
     }
 
     [Fact]
+    public void SystemPrompt_CarriesNoPerToolProse_EvenWithEveryHandGranted()
+    {
+        // 2026.08.14: the eight per-tool paragraphs moved OUT of the sheet and into the tool
+        // definitions, where a tool's contract belongs and where it is sent only on the calls that
+        // actually carry the tool. This is the guard against them creeping back one at a time -
+        // every hand is granted here, and the sheet must still say none of it.
+        var everything = Persona();
+        everything.CanRecallWorld = true;
+        everything.CanSeekWisdom = true;
+        everything.CanMoveHeart = true;
+        everything.CanRecallChronicle = true;
+        everything.CanSurveyField = true;
+        everything.CanStrikeBargain = true;
+        everything.CanTendTroth = true;
+        everything.CanBlessTroth = true;
+
+        var system = new PromptBuilder().Build(everything, new NpcMemory(), "scene", "Vulgrim", "Hi")[0].Content;
+
+        Assert.DoesNotContain("My heart is my own", system);
+        Assert.DoesNotContain("the bargain is mine to strike", system);
+        Assert.DoesNotContain("My troth is my own to tend", system);
+        Assert.DoesNotContain("My misgivings about a life together", system);
+        Assert.DoesNotContain("blessing of that match", system);
+        Assert.DoesNotContain("cast my eyes over the country", system);
+        Assert.DoesNotContain("I call the whole of it back", system);
+        Assert.DoesNotContain("all I have ever read and heard", system);
+
+        // What DOES remain is three habits of speech and nothing more.
+        Assert.Contains("How I speak:", system);
+        Assert.Contains(PromptBuilder.BrevityGuidance, system);
+    }
+
+    [Fact]
     public void SystemPrompt_AlwaysCarriesTheBrevityAndOldWorldToneWhispers()
     {
         // Moved in from the user-editable global prompt (2026.07.10): these must be real every time,
@@ -468,73 +505,55 @@ public class PromptBuilderTests
 
         Assert.Contains(PromptBuilder.BrevityGuidance, system);
         Assert.Contains(PromptBuilder.OldWorldToneGuidance, system);
-        Assert.Contains("four at the most", system);
+        Assert.Contains("a sentence or three", system);
         Assert.Contains("light savor of the old world", system);
     }
 
-    [Fact]
-    public void SystemPrompt_OffersTheHeartWhisper_OnlyWhenTheToolTrulyRides()
-    {
-        // The move_heart whisper must appear only when the tool rides along (CanMoveHeart), so an
-        // NPC is never told of a hand they cannot lift — and told nothing of numbers either way.
-        var withHeart = Persona();
-        withHeart.CanMoveHeart = true;
-
-        var granted = new PromptBuilder().Build(withHeart, new NpcMemory(), "", "Vulgrim", "Hi")[0].Content;
-        var withheld = new PromptBuilder().Build(Persona(), new NpcMemory(), "", "Vulgrim", "Hi")[0].Content;
-
-        Assert.Contains("My heart is my own", granted);
-        Assert.Contains("I never speak the measure aloud", granted);
-        Assert.DoesNotContain("My heart is my own", withheld);
-    }
 
     [Fact]
-    public void ReachOutPonderLine_AsksOnlyWhetherThereIsSomethingToDiscuss()
+    public void ReachOutPonderNote_IsStillRecognizedAsAPonderBeat_ForMemoriesThatHoldOne()
     {
-        // One simple nudge — "is there something I want to discuss?" — and nothing telling them what
-        // a worthy topic is (a list there made every soul answer the same; Anton, 2026.07.27). The
-        // only fact kept: a stranger has no shared past to imagine.
-        var stranger = PromptBuilder.ReachOutPonderLine("Vulgrim", stranger: true);
-        var friend = PromptBuilder.ReachOutPonderLine("Vulgrim");
-
-        Assert.Contains("we have never spoken", stranger);
-        Assert.DoesNotContain("we have never spoken", friend);
-        Assert.Contains("discuss", stranger);
-        Assert.Contains("discuss", friend);
-        // No topic-policing survives.
-        Assert.DoesNotContain("no cause", stranger);
-        Assert.DoesNotContain("no cause", friend);
-        // Both ask for the plain decision the parser reads — YES/NO, never STAY/GO (a "go" smells
-        // of physically leaving).
-        Assert.Contains("NO — or YES:", stranger);
-        Assert.Contains("NO — or YES:", friend);
-        Assert.DoesNotContain("STAY", friend);
-    }
-
-    [Fact]
-    public void ReachOutPonderNote_IsRecognizedAsAPonderBeat()
-    {
+        // The ponder itself is retired (2026.08.16) but its recorded beats are forever — the windows
+        // must go on folding reckoning and resolution into one line of narration.
         Assert.True(PromptBuilder.IsPonderBeat(PromptBuilder.ReachOutPonderNote("Vulgrim", stranger: true)));
         Assert.True(PromptBuilder.IsPonderBeat(PromptBuilder.ReachOutPonderNote("Vulgrim")));
         // Delivery notes are NOT ponders — their spoken words must stand as spoken.
-        Assert.False(PromptBuilder.IsPonderBeat(PromptBuilder.FirstWordNote("Vulgrim", "the granary")));
+        Assert.False(PromptBuilder.IsPonderBeat(PromptBuilder.FirstWordNote("Vulgrim")));
         Assert.False(PromptBuilder.IsPonderBeat(PromptBuilder.ApproachNote("Vulgrim", welcomed: true)));
     }
 
     [Fact]
-    public void FirstWordLine_SpeaksFirstWithTheCauseAndKnowsTheAnswerMayComeLater()
+    public void FirstWordLine_HandsThemTheMicrophone_WithNoQuestionInFrontOfIt()
     {
-        // The chat-window reaching-out: no accept/decline stands between them — she simply goes and
-        // speaks, carrying the cause she resolved on, honest that the player may answer only later.
-        var first = PromptBuilder.FirstWordLine("Vulgrim", stranger: true, reason: "their smith buys no iron");
+        // Since the ponder was retired the roll alone decides who speaks, so this line carries as a
+        // PREMISE the bar the question used to set: something to tell, or to ask. What that something
+        // is stays theirs — no list of worthy topics, which made every soul answer the same, and no
+        // asking whether they have one, which spent a whole sheet to be told "no".
+        var first = PromptBuilder.FirstWordLine("Vulgrim", stranger: true);
         var friend = PromptBuilder.FirstWordLine("Vulgrim");
 
         Assert.Contains("we have never spoken", first);
-        Assert.Contains("their smith buys no iron", first);    // the resolved cause rides along
         Assert.DoesNotContain("we have never spoken", friend);
-        // Both are told the answer may not be immediate, so silence is a lived moment, not a rebuff.
-        Assert.Contains("at once or only later", first);
-        Assert.Contains("at once or only later", friend);
+        foreach (var line in new[] { first, friend })
+        {
+            Assert.Contains("tell them", line);
+            Assert.Contains("ask them", line);
+            // Nothing left that reads as a decision to be made, or as a topic being policed.
+            Assert.DoesNotContain("NO — or YES:", line);
+            Assert.DoesNotContain("no cause", line);
+            // Both are told the answer may not be immediate, so silence is a lived moment, not a rebuff.
+            Assert.Contains("at once or only later", line);
+        }
+    }
+
+    [Fact]
+    public void ApproachLine_CarriesTheSamePremise_WhicheverWayThePlayerAnswered()
+    {
+        var welcomed = PromptBuilder.ApproachLine("Vulgrim", welcomed: true);
+        var busy = PromptBuilder.ApproachLine("Vulgrim", welcomed: false);
+
+        Assert.Contains("tell them, or to ask them", welcomed);
+        Assert.Contains("tell them, or to ask them", busy);
     }
 
     [Fact]
@@ -580,7 +599,7 @@ public class PromptBuilderTests
         // No line an NPC newly receives may address them as "you" — the narrator is retired.
         foreach (var line in new[]
         {
-            PromptBuilder.WriteLetterDesireLine("Vulgrim"),
+            PromptBuilder.ComposeLetterLine("Vulgrim"),
             PromptBuilder.ComposeLetterLine("Vulgrim", inService: true),
             PromptBuilder.ComposeReplyLine("Vulgrim"),
             PromptBuilder.AnswerLetterDesireLine("Vulgrim", "Meet me at Sargot."),
@@ -632,12 +651,12 @@ public class PromptBuilderTests
         var memory = new NpcMemory { Summary = "You fought beside Vulgrim at Omor." };
 
         var system = new PromptBuilder()
-            .Build(Persona(), memory, "And now Vulgrim comes to me.", "Vulgrim", "Hello")[0].Content;
+            .Build(Persona(), memory, "About Vulgrim:", "Vulgrim", "Hello")[0].Content;
 
         // The sheet wakes toward the moment: deep memory → the present scene → the closing whisper,
         // so "they come to me now" is the last thing held before the conversation itself.
-        Assert.True(system.IndexOf("What Vulgrim is to me") < system.IndexOf("And now Vulgrim comes to me."));
-        Assert.True(system.IndexOf("And now Vulgrim comes to me.") < system.IndexOf("How should I speak:"));
+        Assert.True(system.IndexOf("What Vulgrim is to me") < system.IndexOf("About Vulgrim:"));
+        Assert.True(system.IndexOf("About Vulgrim:") < system.IndexOf("How I speak:"));
     }
 
     [Fact]
@@ -650,13 +669,13 @@ public class PromptBuilderTests
 
         var scene = "It is evening, and I am in Sargot."
             + "\n\n" + PromptBuilder.MeetingSeparator + "\n"
-            + "And now Vulgrim, my husband, comes to me.";
+            + "About Vulgrim, my husband:";
         var system = new PromptBuilder().Build(Persona(), memory, scene, "Vulgrim", "Hello")[0].Content;
 
         Assert.DoesNotContain(PromptBuilder.MeetingSeparator, system);
         Assert.True(system.IndexOf("It is evening") < system.IndexOf("What Vulgrim is to me"));
-        Assert.True(system.IndexOf("What Vulgrim is to me") < system.IndexOf("And now Vulgrim, my husband, comes to me."));
-        Assert.True(system.IndexOf("my husband") < system.IndexOf("How should I speak:"));
+        Assert.True(system.IndexOf("What Vulgrim is to me") < system.IndexOf("About Vulgrim, my husband:"));
+        Assert.True(system.IndexOf("my husband") < system.IndexOf("How I speak:"));
         // The memory header carries when the thoughts were last gathered.
         Assert.Contains("as I last gathered my thoughts on 1087.01.18", system);
     }
@@ -669,7 +688,7 @@ public class PromptBuilderTests
         var seeded = new NpcMemory { Summary = "So runs my story, as the world tells it: a lady of the Throsniring.", SeededFromStory = true };
 
         var system = new PromptBuilder()
-            .Build(Persona(), seeded, "And now Vulgrim comes to me.", "Vulgrim", "Hello")[0].Content;
+            .Build(Persona(), seeded, "About Vulgrim:", "Vulgrim", "Hello")[0].Content;
 
         Assert.Contains("The road of my life so far, as I carry it in memory:", system);
         Assert.DoesNotContain("What Vulgrim is to me", system);
@@ -677,7 +696,7 @@ public class PromptBuilderTests
         // The first lived turn makes it memory of a person again, under the usual heading.
         seeded.AddTurn(new ConversationTurn { PlayerLine = "p", NpcLine = "n" });
         var after = new PromptBuilder()
-            .Build(Persona(), seeded, "And now Vulgrim comes to me.", "Vulgrim", "Hello")[0].Content;
+            .Build(Persona(), seeded, "About Vulgrim:", "Vulgrim", "Hello")[0].Content;
         Assert.Contains("What Vulgrim is to me", after);
         Assert.DoesNotContain("The road of my life so far", after);
     }

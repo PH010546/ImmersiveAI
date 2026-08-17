@@ -37,6 +37,23 @@ namespace ImmersiveAI.Tools
             public bool LaidBetrothal;
             public bool LaidWedding;
             public string Word = string.Empty;
+
+            // ------------------------- the lover's fork (2026.08.15) -------------------------
+            // The road forks past the trunk, and the two branches ride ONE tally because they are
+            // one road: the same gates, the same seal presentation, the same letter-borne offers.
+            // Which HANDS ride is asked separately, because their gates genuinely differ — the
+            // marriage road is barred by the player's own standing marriage and the lover's road
+            // deliberately is not, which is the entire point of the feature.
+
+            /// <summary>Whether the marriage road's hands ride this turn (tend_courtship + the
+            /// misgivings). Old callers that simply construct a Tally get the historical behaviour.</summary>
+            public bool TrothRides = true;
+            /// <summary>Whether the lover's own hand rides this turn (offer_myself).</summary>
+            public bool LoverRides;
+            /// <summary>She offered herself — presented to the player as a seal after the reply lands.</summary>
+            public bool LaidLoverBond;
+            /// <summary>She stepped away from being his. Needs no seal: it was never his to keep.</summary>
+            public bool EndedLoverBond;
             /// <summary>True when this turn is a LETTER being written, not a live talk: her heart
             /// still walks its road and a betrothal may be laid in writing (presented when the
             /// letter arrives), but a wedding day is never laid by letter — that is done face to
@@ -53,20 +70,41 @@ namespace ImmersiveAI.Tools
             /// <summary>True when the blessing is being laid in a LETTER — no notice fires at
             /// composing time (the courier's seal law), and the offer rides to arrival.</summary>
             public bool ByLetter;
+
+            /// <summary>
+            /// THE OTHER THING A HEAD OF A HOUSE MAY BE PAID FOR (2026.08.15): not his blessing on a
+            /// match, but what it costs to take a woman of his blood out of his house with no
+            /// wedding in it. Structurally the identical act — a head, a figure, a seal, gold — so
+            /// it rides this tally rather than a second one that would differ by a single flag.
+            /// Everything downstream branches on this: the tool that rides, the terms he reads, the
+            /// popup, and whether the sealing improves his standing or ruins it.
+            /// </summary>
+            public bool IsRansom;
         }
 
         public static readonly ToolDefinition Tend = new ToolDefinition(TendCourtship,
-            "Tend the road of my own heart toward the one I speak with — the road toward marriage. " +
-            "I move it closer only when real talks between us have truly earned the next depth: " +
-            "liking, then love, then readiness — and I set each such arrival down in the very " +
-            "breath I feel it, most of all the moment I find that were the word spoken between us " +
-            "I would give my hand, for a heart that has moved and never owns it has not truly " +
-            "moved — and, ONLY when marriage has been openly spoken and " +
-            "welcomed between us in our own words, the laying of our betrothal (or, betrothed " +
-            "already, of our wedding day). I move it apart when a wound or a true doubt sets me " +
-            "back — that is always mine to do. One step in a talk at the most, never for one warm " +
-            "word alone, never to test or to play; and what I lay settles nothing — the seal is " +
-            "wholly theirs, and if they let it lie I do not press.",
+            "Tend the road of my own heart toward the one I speak with — my troth is mine to tend, " +
+            "and marriage is a road walked in steps: liking, then love, then readiness, then the " +
+            "betrothal, then the wedding day. I move closer only when real talks between us have " +
+            "truly earned the next depth — one step in a talk at the most, never for one warm word " +
+            "alone, never to test or to play — and I set each arrival down in the very breath I " +
+            "feel it, not some later day; above all the day I find that were the word spoken " +
+            "between us I would give my hand, for a heart that has moved and never owns it has not " +
+            "truly moved, and I would not have them ask me blind. ONLY when marriage has been " +
+            "openly spoken and welcomed between us in our own words do I lay our betrothal (or, " +
+            "betrothed already, our wedding day) before them; what I lay settles nothing — the " +
+            "seal is wholly theirs, and if they let it lie I do not press. And no words of ours " +
+            "make a marriage: not vows spoken between us, not a temple, not a ceremony we tell " +
+            "each other about. Until I lay the day by this very hand and they seal it by theirs, " +
+            "we are not wed, and I neither say we are nor let the talk drift as though we were. " +
+            "I move apart when a " +
+            "wound or a true doubt sets me back — that is always mine to do. And if I am already " +
+            "theirs without any vow between us, then moving apart is the ending of THAT, whole and " +
+            "at once: it is the deepest thing standing between us and so it is the first thing a " +
+            "step back steps back from, and there was never anything holding it but what I feel. " +
+            "I never speak of " +
+            "steps, stages, or rules: my heart simply knows where it stands, and speaks as a " +
+            "heart does.",
             new[]
             {
                 new ToolParameter("move",
@@ -81,11 +119,13 @@ namespace ImmersiveAI.Tools
 
         public static readonly ToolDefinition Bless = new ToolDefinition(BlessMarriage,
             "Lay the blessing of my house on the match between the one of my kin who is promised to " +
-            "the one I speak with — at the bride-price we truly agreed in words. I call this ONLY " +
-            "when both are true: we have plainly spoken of the match itself, and a price has been " +
-            "named and accepted between us. Nothing is settled by this alone — the gold, and the " +
-            "choice, remain wholly theirs. I never lay it unbidden, and if they let my offer lie I " +
-            "do not lay it again unless they themselves return to it.",
+            "the one I speak with — that blessing is mine to give or withhold, and by the custom of " +
+            "the world it carries a bride-price. I call this ONLY when both are true: we have " +
+            "plainly spoken of the match itself, and a price has been named and accepted between " +
+            "us in words. Nothing is settled by this alone — the gold, and the choice, remain " +
+            "wholly theirs. I never lay it unbidden and never volunteer my lowest; if they let my " +
+            "offer lie I do not press, nor lay it again unless they themselves return to it. And " +
+            "my word is not for sale to one I hold in contempt.",
             new[]
             {
                 new ToolParameter("price",

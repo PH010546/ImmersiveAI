@@ -1,4 +1,4 @@
-using ImmersiveAI.Core.Courtship;
+﻿using ImmersiveAI.Core.Courtship;
 using ImmersiveAI.Core.Memory;
 using ImmersiveAI.Core.Prompts;
 
@@ -416,32 +416,22 @@ public class CourtshipTests
     };
 
     [Fact]
-    public void Sheet_OffersTheTrothAndMisgivingsWhispers_OnlyWhenTheHandRidesAlong()
+    public void Sheet_CarriesNoTrothOrBlessingProse_ItLivesInTheToolsNow()
     {
-        var withTool = Persona();
-        withTool.CanTendTroth = true;
-        var on = new PromptBuilder().Build(withTool, new NpcMemory(), "scene", "Mizam", "Hello")[0].Content;
-        Assert.Contains("My troth is my own to tend", on);
-        Assert.Contains("the seal is wholly theirs", on);
-        Assert.Contains("I never speak of steps, stages, or rules", on);
-        Assert.Contains("My misgivings about a life together are my own", on);
-        Assert.Contains("never pretend one away", on);
+        // 2026.08.14: the troth, misgivings and blessing paragraphs moved into tend_courtship,
+        // weigh_misgivings and bless_marriage themselves. The Can* flags still decide which hands
+        // are offered at all - only the words moved - so the sheet must stay silent either way.
+        var everyHand = Persona();
+        everyHand.CanTendTroth = true;
+        everyHand.CanBlessTroth = true;
+
+        var on = new PromptBuilder().Build(everyHand, new NpcMemory(), "scene", "Mizam", "Hello")[0].Content;
+        Assert.DoesNotContain("My troth is my own to tend", on);
+        Assert.DoesNotContain("My misgivings about a life together", on);
+        Assert.DoesNotContain("blessing of that match", on);
 
         var off = new PromptBuilder().Build(Persona(), new NpcMemory(), "scene", "Mizam", "Hello")[0].Content;
         Assert.DoesNotContain("My troth is my own to tend", off);
-        Assert.DoesNotContain("My misgivings about a life together", off);
-    }
-
-    [Fact]
-    public void Sheet_OffersTheBlessingWhisper_OnlyToTheHeadOfTheHouse()
-    {
-        var head = Persona();
-        head.CanBlessTroth = true;
-        var on = new PromptBuilder().Build(head, new NpcMemory(), "scene", "Mizam", "Hello")[0].Content;
-        Assert.Contains("the blessing of that match is mine to give or withhold", on);
-        Assert.Contains("never volunteer my lowest", on);
-
-        var off = new PromptBuilder().Build(Persona(), new NpcMemory(), "scene", "Mizam", "Hello")[0].Content;
         Assert.DoesNotContain("blessing of that match", off);
     }
 
@@ -556,6 +546,39 @@ public class CourtshipTests
         // And never once the promise is given — the posture then is the troth, not the waiting.
         Assert.DoesNotContain("I wait now to be asked",
             CourtshipText.RoadSection("Mizam", CourtshipStage.Betrothed, settled, true, false, false, ""));
+    }
+
+    [Fact]
+    public void RoadSection_AlwaysCarriesTheRailAgainstAWeddingMadeOfWords()
+    {
+        // The 2026.08.15 report: two open misgivings, so the road refused every step and every lay —
+        // and the pair went to a temple and said their vows anyway, in words, while nothing at all
+        // happened in the world. The rails held; the TALK simply walked around them. So every stage
+        // that is on the road carries the rail, wherever her heart stands.
+        foreach (var stage in new[] { CourtshipStage.Warmth, CourtshipStage.Devotion,
+                                      CourtshipStage.Ready, CourtshipStage.Betrothed })
+        {
+            var section = CourtshipText.RoadSection("Mizam", stage, null, true, false, false, "");
+            Assert.Contains("no words of ours make a marriage", section);
+            Assert.Contains("not a temple", section);
+        }
+
+        // And nowhere else: silence at both ends of the road stays silence.
+        Assert.Equal(string.Empty, CourtshipText.RoadSection("Mizam", CourtshipStage.None, null, true, false, false, ""));
+        Assert.Equal(string.Empty, CourtshipText.RoadSection("Mizam", CourtshipStage.Wed, null, true, false, false, ""));
+    }
+
+    [Fact]
+    public void ForwardRefusalForPlayer_SaysPlainlyWhatHerOwnWordsMayNot()
+    {
+        // Her side is numberless and vague on purpose; the PLAYER's side must name the cause, or a
+        // refused reach is indistinguishable from a broken mod.
+        Assert.Contains("misgiving", CourtshipText.ForwardRefusalForPlayer(CourtshipRoad.StepVerdict.MisgivingsRemain));
+        Assert.Contains("station", CourtshipText.ForwardRefusalForPlayer(CourtshipRoad.StepVerdict.StationTooFar));
+        Assert.Contains("seasoned", CourtshipText.ForwardRefusalForPlayer(CourtshipRoad.StepVerdict.TrothTooFresh));
+
+        foreach (CourtshipRoad.StepVerdict verdict in System.Enum.GetValues(typeof(CourtshipRoad.StepVerdict)))
+            Assert.False(string.IsNullOrWhiteSpace(CourtshipText.ForwardRefusalForPlayer(verdict)));
     }
 
     [Fact]

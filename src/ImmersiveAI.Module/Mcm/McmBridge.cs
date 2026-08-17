@@ -211,6 +211,9 @@ namespace ImmersiveAI.Mcm
             if (s.ChatWindowHotkey == null) { s.ChatWindowHotkey = new Dropdown<string>(McmChoiceLists.HotkeyKeys, 0); repaired = true; }
             if (s.LetterWindowHotkey == null) { s.LetterWindowHotkey = new Dropdown<string>(McmChoiceLists.HotkeyKeys, 8); repaired = true; }
             if (s.PersonaSparkMode == null) { s.PersonaSparkMode = new Dropdown<string>(McmChoiceLists.SparkModes, 0); repaired = true; }
+            if (s.VoiceDelivery == null) { s.VoiceDelivery = new Dropdown<string>(McmChoiceLists.VoiceDeliveryModes, 1); repaired = true; }
+            if (s.VoiceForMe == null) { s.VoiceForMe = new Dropdown<string>(McmChoiceLists.NoVoice, 0); repaired = true; }
+            if (s.VoicePanicKey == null) { s.VoicePanicKey = new Dropdown<string>(McmChoiceLists.PanicKeys, 0); repaired = true; }
             if (s.NightWindowHotkey == null) { s.NightWindowHotkey = new Dropdown<string>(McmChoiceLists.HotkeyKeys, 9); repaired = true; }
             if (repaired)
                 ModLog.Warn("MCM served an uninitialized settings instance — dropdowns rebuilt by hand " +
@@ -241,20 +244,25 @@ namespace ImmersiveAI.Mcm
                 s.OpenAIBaseUrl, s.LocalEndpoint, s.LocalModel, s.LocalContextWindow, s.MaxTokens,
                 s.EnableChatWindow, SelectedOf(s.ChatWindowHotkey), SelectedOf(s.LetterWindowHotkey),
                 s.NotifyWhenReplyReady, s.EnableNpcInitiatedChats, s.Socialness, s.ShowSocialnessControl,
-                s.EnableLetters, s.EnableWorldRecall, s.EnableWebSearch,
-                s.EnableConversationHiring, s.ConversationHiringHagglePercent,
+                s.EnableGearNotes, s.EnableConversationHiring, s.ConversationHiringHagglePercent,
                 s.EnableConversationMarriage, s.EnableQuestDialogueBridge, s.AllowCompanionMarriage, s.MarriageNeedsFamilyConsent,
                 s.MarriageDowryHagglePercent, s.CourtshipCharmSlack, s.MinBetrothalDays,
+                s.EnableLoversRoad, s.LoverRansomHagglePercent, s.EnableClosedDoors, s.AllowDutyNights,
                 SelectedOf(s.PersonaSparkMode),
-                s.EnableNights, s.NightsAutoVisit, s.NightsPreventChild, s.NightCooldownHours,
+                s.EnableVoice, s.VoiceAutoSpeak, s.VoiceSpeakWhenClosed, s.VoiceSpeakActedParts, s.VoiceAutoCast,
+                SelectedOf(s.VoiceDelivery),
+                SelectedOf(s.VoiceForMe),
+                s.VoiceSpeakReachOuts, SelectedOf(s.VoicePanicKey), s.CloudVoiceApiKey,
+                s.EnableNights, s.NightsAutoVisit, s.NightsPreventChild, s.NightDayResetHour,
                 s.ConceptionRevealDelayDays, s.ShowConceptionOdds, s.PaidNightsDisorganizeParty,
+                s.AskWhatYouHaveInMind,
                 s.EnableNightWindow, SelectedOf(s.NightWindowHotkey),
                 s.RevertMemoriesWithSaves,
                 s.MaxRecentMemoryPercent, s.MinRecentMemoryPercentAfterCompression,
                 s.MaxRecentTurns, s.KeepRecentTurnsAfterCompression,
                 s.MaxRecentDays, s.KeepRecentDaysAfterCompression,
                 s.MaxMemoryWriteTokens, s.NotifyOnMemoryRefactor,
-                s.ShowCostNotices, s.MaxDailyRequests, s.DevMode);
+                s.ShowCostNotices, s.MaxDailyRequests, s.TalkScreenFpsLimit, s.DevMode);
         }
 
         /// <summary>The config side of the same fields — raw values; any change means "push to menu".</summary>
@@ -270,19 +278,27 @@ namespace ImmersiveAI.Mcm
                 c.EnableChatWindow, c.ChatWindowHotkey, c.LetterWindowHotkey,
                 c.NotifyWhenReplyReady, c.EnableNpcInitiatedChats, c.DailyInitiationRate, c.ShowSocialnessControl,
                 c.EnableLetters, c.EnableWorldRecall, c.EnableWebSearch,
-                c.EnableConversationHiring, c.ConversationHiringHagglePercent,
+                c.EnableGearNotes, c.EnableConversationHiring, c.ConversationHiringHagglePercent,
                 c.EnableConversationMarriage, c.EnableQuestDialogueBridge, c.AllowCompanionMarriage, c.MarriageNeedsFamilyConsent,
                 c.MarriageDowryHagglePercent, c.CourtshipCharmSlack, c.MinBetrothalDays,
+                c.EnableLoversRoad, c.LoverRansomHagglePercent, c.EnableClosedDoors, c.AllowDutyNights,
                 c.PersonaSparkMode,
-                c.EnableNights, c.NightsAutoVisit, c.NightsPreventChild, c.NightCooldownHours,
+                c.EnableVoice, c.VoiceAutoSpeak, c.VoiceSpeakWhenClosed, c.VoiceSpeakActedParts, c.VoiceAutoCast, c.VoiceDelivery,
+                // The castings live in the voices' own sheet, not in config.json — so the signature
+                // asks the service for them, and a voice given in the talk screen's panel shows up
+                // in the menu on the next poll without either side owning the truth twice.
+                Voice.VoiceService.PlayerVoiceId,
+                c.VoiceSpeakReachOuts, c.VoicePanicKey, c.CloudVoiceApiKey,
+                c.EnableNights, c.NightsAutoVisit, c.NightsPreventChild, c.NightDayResetHour,
                 c.ConceptionRevealDelayDays, c.ShowConceptionOdds, c.PaidNightsDisorganizeParty,
+                c.AskWhatYouHaveInMind,
                 c.EnableNightWindow, c.NightWindowHotkey,
                 c.RevertMemoriesWithSaves,
                 c.MaxRecentMemoryPercent, c.MinRecentMemoryPercentAfterCompression,
                 c.MaxRecentTurns, c.KeepRecentTurnsAfterCompression,
                 c.MaxRecentDays, c.KeepRecentDaysAfterCompression,
                 c.MaxMemoryWriteTokens, c.NotifyOnMemoryRefactor,
-                c.ShowCostNotices, c.MaxDailyRequests, c.DevMode);
+                c.ShowCostNotices, c.MaxDailyRequests, c.TalkScreenFpsLimit, c.DevMode);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -322,6 +338,7 @@ namespace ImmersiveAI.Mcm
             s.EnableLetters = c.EnableLetters;
             s.EnableWorldRecall = c.EnableWorldRecall;
             s.EnableWebSearch = c.EnableWebSearch;
+            s.EnableGearNotes = c.EnableGearNotes;
             s.EnableConversationHiring = c.EnableConversationHiring;
             s.ConversationHiringHagglePercent = Clamp(c.ConversationHiringHagglePercent, 0, 90);
             s.EnableConversationMarriage = c.EnableConversationMarriage;
@@ -331,14 +348,29 @@ namespace ImmersiveAI.Mcm
             s.MarriageDowryHagglePercent = Clamp(c.MarriageDowryHagglePercent, 0, 90);
             s.CourtshipCharmSlack = Clamp(c.CourtshipCharmSlack, 0, 4);
             s.MinBetrothalDays = Clamp(c.MinBetrothalDays, 0, 30);
+            s.EnableLoversRoad = c.EnableLoversRoad;
+            s.LoverRansomHagglePercent = Clamp(c.LoverRansomHagglePercent, 0, 90);
+            s.EnableClosedDoors = c.EnableClosedDoors;
+            s.AllowDutyNights = c.AllowDutyNights;
             Select(s.PersonaSparkMode, SparkModeLabel(c.PersonaSparkMode));
+            s.EnableVoice = c.EnableVoice;
+            s.VoiceAutoSpeak = c.VoiceAutoSpeak;
+            s.VoiceSpeakWhenClosed = c.VoiceSpeakWhenClosed;
+            s.VoiceSpeakActedParts = c.VoiceSpeakActedParts;
+            s.VoiceAutoCast = c.VoiceAutoCast;
+            Select(s.VoiceDelivery, VoiceDeliveryLabel(c.VoiceDelivery));
+            s.VoiceSpeakReachOuts = c.VoiceSpeakReachOuts;
+            SelectOrAdd(s.VoicePanicKey, c.VoicePanicKey);
+            s.CloudVoiceApiKey = c.CloudVoiceApiKey ?? string.Empty;
+            PushVoiceCastings(s);
             s.EnableNights = c.EnableNights;
             s.NightsAutoVisit = c.NightsAutoVisit;
             s.NightsPreventChild = c.NightsPreventChild;
-            s.NightCooldownHours = Clamp(c.NightCooldownHours, 1, 72);
+            s.NightDayResetHour = Clamp(c.NightDayResetHour, 0, 23);
             s.ConceptionRevealDelayDays = Clamp(c.ConceptionRevealDelayDays, 0, 30);
             s.ShowConceptionOdds = c.ShowConceptionOdds;
             s.PaidNightsDisorganizeParty = c.PaidNightsDisorganizeParty;
+            s.AskWhatYouHaveInMind = c.AskWhatYouHaveInMind;
             s.EnableNightWindow = c.EnableNightWindow;
             Select(s.NightWindowHotkey, c.NightWindowHotkey);
             s.RevertMemoriesWithSaves = c.RevertMemoriesWithSaves;
@@ -352,6 +384,7 @@ namespace ImmersiveAI.Mcm
 
             s.ShowCostNotices = c.ShowCostNotices;
             s.MaxDailyRequests = Clamp(c.MaxDailyRequests, 0, 2000);
+            s.TalkScreenFpsLimit = Clamp(c.TalkScreenFpsLimit, 0, 360);
 
             s.DevMode = c.DevMode;
         }
@@ -422,6 +455,7 @@ namespace ImmersiveAI.Mcm
             c.EnableLetters = s.EnableLetters;
             c.EnableWorldRecall = s.EnableWorldRecall;
             c.EnableWebSearch = s.EnableWebSearch;
+            c.EnableGearNotes = s.EnableGearNotes;
             c.EnableConversationHiring = s.EnableConversationHiring;
             c.ConversationHiringHagglePercent = s.ConversationHiringHagglePercent;
             c.EnableConversationMarriage = s.EnableConversationMarriage;
@@ -431,14 +465,29 @@ namespace ImmersiveAI.Mcm
             c.MarriageDowryHagglePercent = s.MarriageDowryHagglePercent;
             c.CourtshipCharmSlack = s.CourtshipCharmSlack;
             c.MinBetrothalDays = s.MinBetrothalDays;
+            c.EnableLoversRoad = s.EnableLoversRoad;
+            c.LoverRansomHagglePercent = s.LoverRansomHagglePercent;
+            c.EnableClosedDoors = s.EnableClosedDoors;
+            c.AllowDutyNights = s.AllowDutyNights;
             c.PersonaSparkMode = SparkModeValue(SelectedOf(s.PersonaSparkMode)) ?? c.PersonaSparkMode;
+            c.EnableVoice = s.EnableVoice;
+            c.VoiceAutoSpeak = s.VoiceAutoSpeak;
+            c.VoiceSpeakWhenClosed = s.VoiceSpeakWhenClosed;
+            c.VoiceSpeakActedParts = s.VoiceSpeakActedParts;
+            c.VoiceAutoCast = s.VoiceAutoCast;
+            c.VoiceDelivery = VoiceDeliveryValue(SelectedOf(s.VoiceDelivery)) ?? c.VoiceDelivery;
+            c.VoiceSpeakReachOuts = s.VoiceSpeakReachOuts;
+            c.VoicePanicKey = SelectedOf(s.VoicePanicKey) ?? c.VoicePanicKey;
+            c.CloudVoiceApiKey = s.CloudVoiceApiKey ?? string.Empty;
+            PullVoiceCastings(s);
             c.EnableNights = s.EnableNights;
             c.NightsAutoVisit = s.NightsAutoVisit;
             c.NightsPreventChild = s.NightsPreventChild;
-            c.NightCooldownHours = s.NightCooldownHours;
+            c.NightDayResetHour = s.NightDayResetHour;
             c.ConceptionRevealDelayDays = s.ConceptionRevealDelayDays;
             c.ShowConceptionOdds = s.ShowConceptionOdds;
             c.PaidNightsDisorganizeParty = s.PaidNightsDisorganizeParty;
+            c.AskWhatYouHaveInMind = s.AskWhatYouHaveInMind;
             c.EnableNightWindow = s.EnableNightWindow;
             c.NightWindowHotkey = SelectedOf(s.NightWindowHotkey) ?? c.NightWindowHotkey;
             c.RevertMemoriesWithSaves = s.RevertMemoriesWithSaves;
@@ -464,8 +513,134 @@ namespace ImmersiveAI.Mcm
             c.ShowCostNotices = s.ShowCostNotices;
             if (s.MaxDailyRequests != Clamp(c.MaxDailyRequests, 0, 2000))
                 c.MaxDailyRequests = s.MaxDailyRequests;
+            if (s.TalkScreenFpsLimit != Clamp(c.TalkScreenFpsLimit, 0, 360))
+                c.TalkScreenFpsLimit = s.TalkScreenFpsLimit;
 
             c.DevMode = s.DevMode;
+        }
+
+        // ── The voice castings ──────────────────────────────────────────────────────
+        //
+        // The one pair of dropdowns in this menu whose CHOICES are not a fixed vocabulary: they are
+        // whatever voices the player has made or been given, which can change between one session and
+        // the next — and MCM persists a dropdown as an INDEX into its list. An index into a list that
+        // has grown a voice at the top is a different voice; silently recasting everybody because a
+        // folder was added is exactly the sort of bug nobody would think to report.
+        //
+        // So: the lists are rebuilt from the live shelf here, the selection is made BY VOICE ID, and
+        // whatever index MCM restored is thrown away. The truth lives in the voices' own sheet
+        // (assignments.json), never in config.json — the panel in the talk screen writes the same
+        // sheet, so the two doors agree without either owning it.
+        //
+        // The names shown are the voices' own; two voices may share one (nothing stops a player
+        // naming two folders "Sibylla"), so the mapping back is by POSITION in the list we just
+        // built, which is exact for as long as it is on screen.
+
+        /// <summary>The shelf as the menu last showed it, in order, so a chosen row maps back to the
+        /// voice it named rather than to a name that might be shared.</summary>
+        private static List<string> _voiceIdsInMenuOrder = new List<string>();
+        private static string _voiceShelfShape = string.Empty;
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void PushVoiceCastings(ImmersiveAiMcmSettings s)
+        {
+            try
+            {
+                var shelf = Voice.VoiceService.Shelf();
+
+                var labels = new List<string> { McmChoiceLists.NoVoiceLabel };
+                var ids = new List<string> { string.Empty };
+                foreach (var voice in shelf)
+                {
+                    labels.Add(voice.Name);
+                    ids.Add(voice.Id);
+                }
+
+                // Only build NEW dropdowns when the shelf itself has changed. A push happens
+                // whenever any watched setting moves, and handing MCM three fresh Dropdown objects
+                // every time would throw away a selection the player is in the middle of making —
+                // and, on some MCM builds, not refresh the visible list anyway. Selecting inside the
+                // dropdown we already gave it is both cheaper and better behaved.
+                var shape = string.Join("|", ids);
+                var rebuild = shape != _voiceShelfShape;
+                _voiceShelfShape = shape;
+                _voiceIdsInMenuOrder = ids;
+
+                if (rebuild)
+                {
+                    s.VoiceForMe = Rebuilt(labels, ids, Voice.VoiceService.PlayerVoiceId);
+                    return;
+                }
+
+                SelectById(s.VoiceForMe, labels, ids, Voice.VoiceService.PlayerVoiceId);
+            }
+            catch (Exception ex)
+            {
+                ModLog.Warn("MCM: the voice lists could not be built — " + ex.Message);
+            }
+        }
+
+        /// <summary>Moves an existing dropdown onto the voice with this id — BY ID, never by the
+        /// index MCM happens to have stored.</summary>
+        private static void SelectById(Dropdown<string>? dropdown, List<string> labels, List<string> ids, string chosenId)
+        {
+            try
+            {
+                if (dropdown == null) return;
+                for (var i = 0; i < ids.Count; i++)
+                {
+                    var match = string.IsNullOrEmpty(chosenId)
+                        ? string.IsNullOrEmpty(ids[i])
+                        : string.Equals(ids[i], chosenId, StringComparison.OrdinalIgnoreCase);
+                    if (!match) continue;
+                    if (dropdown.SelectedIndex != i) dropdown.SelectedIndex = i;
+                    return;
+                }
+            }
+            catch { /* an unhealthy dropdown is never worth a failed sync */ }
+        }
+
+        private static Dropdown<string> Rebuilt(List<string> labels, List<string> ids, string chosenId)
+        {
+            var at = 0;
+            for (var i = 0; i < ids.Count; i++)
+                if (!string.IsNullOrEmpty(ids[i]) && string.Equals(ids[i], chosenId, StringComparison.OrdinalIgnoreCase))
+                { at = i; break; }
+            return new Dropdown<string>(labels, at);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void PullVoiceCastings(ImmersiveAiMcmSettings s)
+        {
+            try
+            {
+                // Before the lists have ever been built, the menu holds only the placeholder — and
+                // reading a casting out of THAT would clear all three. Nothing to pull yet.
+                if (_voiceIdsInMenuOrder.Count <= 1) return;
+
+                var mine = IdOfSelected(s.VoiceForMe);
+
+                if (mine != null && mine != Voice.VoiceService.PlayerVoiceId) Voice.VoiceService.SetPlayerVoice(mine);
+            }
+            catch (Exception ex)
+            {
+                ModLog.Warn("MCM: a voice casting could not be read — " + ex.Message);
+            }
+        }
+
+        /// <summary>The voice id a dropdown's selection means. Null when it cannot be read at all —
+        /// which must never be treated as "no voice", or an unhealthy dropdown would silence
+        /// everybody. Empty string IS a real answer: the player chose "(none)".</summary>
+        private static string? IdOfSelected(Dropdown<string>? dropdown)
+        {
+            try
+            {
+                if (dropdown == null) return null;
+                var at = dropdown.SelectedIndex;
+                if (at < 0 || at >= _voiceIdsInMenuOrder.Count) return null;
+                return _voiceIdsInMenuOrder[at];
+            }
+            catch { return null; }
         }
 
         // ── The store-file rescue ───────────────────────────────────────────────────
@@ -677,6 +852,25 @@ namespace ImmersiveAI.Mcm
 
         private static string? SparkModeValue(string? menuLabel) =>
             menuLabel == null ? null : (menuLabel == "Ask first" ? "Ask" : menuLabel);
+
+        // The menu spells the roads for a reader; config.json spells them for a parser. Matched on
+        // the leading word so the parenthetical hints can be reworded without breaking stored files.
+        private static string VoiceDeliveryLabel(string configValue)
+        {
+            if (string.Equals(configValue, "Streaming", StringComparison.OrdinalIgnoreCase))
+                return McmChoiceLists.VoiceDeliveryModes[1];
+            if (string.Equals(configValue, "ByLine", StringComparison.OrdinalIgnoreCase))
+                return McmChoiceLists.VoiceDeliveryModes[2];
+            return McmChoiceLists.VoiceDeliveryModes[0];
+        }
+
+        private static string? VoiceDeliveryValue(string? menuLabel)
+        {
+            if (menuLabel == null) return null;
+            if (menuLabel.StartsWith("Streaming", StringComparison.OrdinalIgnoreCase)) return "Streaming";
+            if (menuLabel.StartsWith("By line", StringComparison.OrdinalIgnoreCase)) return "ByLine";
+            return "FullRead";
+        }
 
         private static int Clamp(int value, int min, int max) =>
             value < min ? min : (value > max ? max : value);

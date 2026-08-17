@@ -47,6 +47,15 @@ namespace ImmersiveAI.Core.Births
         /// <summary>Opens the mark of a child who did not live. Never reword.</summary>
         public const string GriefMark = "A child of mine came into the world this day and did not stay in it:";
 
+        /// <summary>Opens the mark of a name given, or withheld, before the world. Never reword.</summary>
+        public const string NameMark = "Of the name my child carries:";
+
+        /// <summary>Opens what a CHILD keeps of its own beginning. Never reword.</summary>
+        public const string OwnBeginningMark = "Of my own beginning:";
+
+        public static bool IsNameBeat(string? line) => Has(line, NameMark);
+        public static bool IsOwnBeginningBeat(string? line) => Has(line, OwnBeginningMark);
+
         public static bool IsHourBeat(string? line) => Has(line, HourAccountMark);
         public static bool IsFeastBeat(string? line) => Has(line, FeastAccountMark);
         public static bool IsFatherBeat(string? line) => Has(line, FatherMark);
@@ -123,6 +132,137 @@ namespace ImmersiveAI.Core.Births
                  + $"{FeastAccountMark} {account?.Trim()}";
         }
 
+        // ------------------------- what the world says of a house -------------------------
+
+        /// <summary>One child, as the world's own words have them.</summary>
+        public sealed class HouseChild
+        {
+            public string Name = string.Empty;
+            public string MotherName = string.Empty;
+            /// <summary>True when the mother was his wife on the day.</summary>
+            public bool InMarriage;
+            public bool Owned;
+        }
+
+        /// <summary>
+        /// HOW A HOUSE IS SPOKEN OF (2026.08.15). The honest caveat, accepted with open eyes: the
+        /// game's own encyclopedia shows the blood. But souls speak from OUR sheets, and the fiction
+        /// lives in the world of words, which is where this mod lives.
+        ///
+        /// A child of the marriage is simply his. A child he has owned is his, and the world says
+        /// how it came to be so. A child he has NOT owned appears only in HER line — "so-and-so is
+        /// raising a son" — the world politely declining to say whose, which is precisely the shape
+        /// of the thing and precisely what makes a late owning heavy: it is not merely a name, it is
+        /// a taking-in, in front of everyone who spent years not saying it.
+        /// </summary>
+        /// <param name="hisName">The man whose house this is. IT IS NOT THE READER — this line rides
+        /// the sheet of the women of his household, where "I" means HER. Written in his own first
+        /// person it made every wife and lover claim his children as her own, which is exactly the
+        /// kind of quiet voice break this mod exists not to make (self-review, 2026.08.15).</param>
+        public static string HouseLine(IReadOnlyList<HouseChild>? children, string hisName)
+        {
+            var kept = (children ?? new List<HouseChild>())
+                .Where(c => c != null && !string.IsNullOrWhiteSpace(c.Name)).ToList();
+            if (kept.Count == 0) return string.Empty;
+
+            var him = string.IsNullOrWhiteSpace(hisName) ? "he" : hisName.Trim();
+            var sb = new StringBuilder();
+            var byWife = kept.Where(c => c.InMarriage).ToList();
+            var owned = kept.Where(c => !c.InMarriage && c.Owned).ToList();
+            var unsaid = kept.Where(c => !c.InMarriage && !c.Owned).ToList();
+
+            sb.Append("Of ").Append(him).Append("'s house, as the world may speak of it: ");
+
+            if (byWife.Count > 0)
+                sb.Append(Listed(byWife.Select(c => c.Name))).Append(", born of his marriage.");
+
+            foreach (var group in owned.GroupBy(c => c.MotherName ?? string.Empty))
+            {
+                if (byWife.Count > 0 || group != owned.GroupBy(c => c.MotherName ?? string.Empty).First()) sb.Append(' ');
+                sb.Append(Listed(group.Select(c => c.Name)))
+                  .Append(" he has owned before the world as his, by ")
+                  .Append(string.IsNullOrWhiteSpace(group.Key) ? "another woman" : group.Key.Trim())
+                  .Append('.');
+            }
+
+            foreach (var group in unsaid.GroupBy(c => c.MotherName ?? string.Empty))
+            {
+                sb.Append(' ');
+                var mother = string.IsNullOrWhiteSpace(group.Key) ? "A woman" : group.Key.Trim();
+                int n = group.Count();
+                sb.Append(mother).Append(n == 1 ? " is raising a child" : $" is raising {Spell(n)} children")
+                  .Append(" he has never owned before anyone. What the world privately believes about that ")
+                  .Append("is its own affair; he has said nothing of it.");
+            }
+
+            return sb.ToString().Trim();
+        }
+
+        private static string Listed(IEnumerable<string> names)
+        {
+            var kept = names.Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.Trim()).ToList();
+            if (kept.Count == 0) return string.Empty;
+            if (kept.Count == 1) return kept[0];
+            return string.Join(", ", kept.Take(kept.Count - 1)) + " and " + kept[kept.Count - 1];
+        }
+
+        private static readonly string[] SmallNumbers =
+            { "no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten" };
+
+        private static string Spell(int n) =>
+            n >= 0 && n < SmallNumbers.Length ? SmallNumbers[n] : n.ToString();
+
+        // ------------------------- the name, given or withheld (2026.08.15) -------------------------
+
+        /// <summary>
+        /// What the MOTHER keeps of it. Three different days, three different sentences, and not one
+        /// of them tells her how to take it — she is given the fact and the whole of what she makes
+        /// of it stays hers, which is the founding law of everything downstream of the nights.
+        /// </summary>
+        public static string MotherNameBeat(string fatherName, string childNames,
+            bool given, bool withFeast, bool late)
+        {
+            var him = Name(fatherName);
+            if (!given)
+                return $"{NameMark} {him} has not owned {childNames} before anyone. The child is his and everybody "
+                     + "knows it, and none of that is the same as his having said so.";
+            if (late)
+                return $"{NameMark} Today, after all this time, {him} owned {childNames} before the world and gave "
+                     + $"the child his name. It was not said on the day it was born. It is said now.";
+            return withFeast
+                ? $"{NameMark} {him} owned {childNames} before a hall full of people and gave the child his name."
+                : $"{NameMark} {him} owned {childNames} — quietly, with no hall and no herald, but he said it, and it was heard.";
+        }
+
+        /// <summary>
+        /// WHAT THE CHILD ITSELF KEEPS (2026.08.15). A hero has a memory file from the day they are
+        /// born, whether or not they can yet speak — so a child's own history simply accumulates,
+        /// and the day it comes of age and first opens its mouth it ALREADY KNOWS WHO IT IS.
+        /// Nothing briefs it. Nothing is generated. This costs one hand-written line and is, for the
+        /// money, the best thing in the whole batch.
+        ///
+        /// THE PRIVACY FENCE RUNS ONE PERSON FURTHER HERE: a child is never handed its mother's
+        /// first-person account of the hour. It gets the facts of its own day and not her voice —
+        /// the CradleTool rule, extended, and it is code rather than prose.
+        /// </summary>
+        public static string ChildBornBeat(string motherName, string fatherName, string placePhrase, bool owned)
+        {
+            var where = Where(placePhrase);
+            var mine = $"{OwnBeginningMark} I was born to {Name(motherName)}{where}.";
+            return owned
+                ? mine + $" {Name(fatherName)} is my father, and the world was told so."
+                : mine + $" {Name(fatherName)} is my father. Nothing was said of it before anyone.";
+        }
+
+        /// <summary>The day a child is given its father's name — kept in the CHILD's own memory,
+        /// where it will still be when the child is grown and can finally say something about it.
+        /// So is the silence, when there is one, which is the entire point of recording either.</summary>
+        public static string ChildNameBeat(string fatherName, bool late) =>
+            late
+                ? $"{NameMark} Today {Name(fatherName)} stood up and owned me before the world, and gave me his name. "
+                + "I had been alive a while by then. I know exactly how long."
+                : $"{NameMark} {Name(fatherName)} owned me before the world and gave me his name.";
+
         /// <summary>The mark for a child who did not live. No chronicler is called for this and no
         /// feast is offered — the record simply holds it, and so does she. Written by hand and
         /// never by a model, because there is nothing here worth a paid call and a great deal
@@ -147,7 +287,10 @@ namespace ImmersiveAI.Core.Births
         /// mother reads her own memory back, while the father reads what she told him of it, which
         /// is the honest way a man comes to know an hour he may not even have been in the room for.
         /// </summary>
-        public static string FullAccount(BirthRecord record, bool includeHour, bool asMother)
+        /// <param name="yearsSince">Years between that day and today; negative when unknown. See
+        /// <see cref="TheirYearsThatDay"/> — a child's day is the one most likely of all to be told
+        /// back decades later, when everyone in it has become someone else.</param>
+        public static string FullAccount(BirthRecord record, bool includeHour, bool asMother, double yearsSince = -1)
         {
             if (record == null) return string.Empty;
             var sb = new StringBuilder();
@@ -158,6 +301,9 @@ namespace ImmersiveAI.Core.Births
             head.Append(" — ").Append(Name(record.MotherName)).Append(" bore ")
                 .Append(record.ChildWords()).Append(", ").Append(record.ChildNames()).Append('.');
             sb.AppendLine(head.ToString());
+
+            var then = TheirYearsThatDay(record, yearsSince);
+            if (then.Length > 0) sb.AppendLine(then);
 
             if (record.StillbornCount > 0)
                 sb.AppendLine(record.AnyLived
@@ -189,6 +335,44 @@ namespace ImmersiveAI.Core.Births
                 sb.AppendLine(record.FeastAccount.Trim());
             }
             return sb.ToString().TrimEnd();
+        }
+
+        /// <summary>
+        /// How old the parents were on the day, how long ago it was, and therefore how old the
+        /// child would be now — the anchor that keeps a birth told years later from being told
+        /// about the people they have since become. Empty when the record kept no ages and the day
+        /// is recent enough that nothing needs saying.
+        /// </summary>
+        public static string TheirYearsThatDay(BirthRecord record, double yearsSince)
+        {
+            if (record == null) return string.Empty;
+            var sb = new StringBuilder();
+
+            if (record.MotherAge > 0 || record.FatherAge > 0)
+            {
+                sb.Append("On that day ");
+                if (record.MotherAge > 0 && record.FatherAge > 0)
+                    sb.Append(Name(record.MotherName)).Append(" was about ").Append(record.MotherAge)
+                      .Append(" and ").Append(Name(record.FatherName)).Append(" about ").Append(record.FatherAge);
+                else if (record.MotherAge > 0)
+                    sb.Append(Name(record.MotherName)).Append(" was about ").Append(record.MotherAge);
+                else
+                    sb.Append(Name(record.FatherName)).Append(" was about ").Append(record.FatherAge);
+                sb.Append('.');
+            }
+
+            int years = (int)Math.Floor(yearsSince);
+            if (years >= 1)
+            {
+                if (sb.Length > 0) sb.Append(' ');
+                // "would be" and not "is": the ledger knows what was born, never who is still living.
+                var child = record.AnyLived
+                    ? (record.Children.Count > 1 ? " — they would be that old now." : " — the child would be that old now.")
+                    : ".";
+                sb.Append(years == 1 ? "That was a year ago" : $"That was some {years} years ago")
+                  .Append(child == "." ? "." : child);
+            }
+            return sb.ToString();
         }
 
         /// <summary>One line of the roll, when a soul has seen more than one of these days.</summary>
@@ -247,6 +431,9 @@ namespace ImmersiveAI.Core.Births
             public string MotherSelfText = string.Empty;
 
             public string FatherName = string.Empty;
+            /// <summary>His age on the day. The mother's was always given and his never was (fixed
+            /// 2026.08.15) — the wedding's own oversight, wearing the other parent's clothes.</summary>
+            public int FatherAge;
             public string FatherStanding = string.Empty;
             /// <summary>Whether the father stood there when it happened.</summary>
             public bool FatherWasThere = true;
@@ -419,6 +606,7 @@ namespace ImmersiveAI.Core.Births
 
             var father = new StringBuilder("- ");
             father.Append(Name(facts.FatherName)).Append(" — the father");
+            if (facts.FatherAge > 0) father.Append(", about ").Append(facts.FatherAge);
             if (!string.IsNullOrWhiteSpace(facts.FatherStanding)) father.Append(", ").Append(facts.FatherStanding.Trim().TrimEnd('.'));
             father.Append('.');
             father.Append(facts.FatherWasThere

@@ -231,26 +231,33 @@ namespace ImmersiveAI.Core.Prompts
             return parts.Count == 0 ? string.Empty : "[" + string.Join(", ", parts) + "] ";
         }
 
-        /// <summary>The NPC's own reckoning on whether to approach the player — one simple nudge, first
-        /// person: is there something I want to DISCUSS with them (not merely "do I want to say hi"), the
-        /// rest left wholly to their own nature and what the sheet has stirred (news, mood, trade, memory).
-        /// Deliberately free of instruction about what a worthy topic is — a list there made every soul
-        /// answer the same (Anton, 2026.07.27: "the AI stops being AI and becomes a program again").
-        /// Answered NO or "YES: the something" (see <see cref="Initiation.InitiationParser.WantsToGo"/>).</summary>
-        public static string ReachOutPonderLine(string playerName, bool stranger = false) => stranger
-            ? $"I notice {playerName} nearby — someone I know only by sight, for we have never spoken. " +
-              "Is there something I would discuss with them? " +
-              "I decide in one line: NO — or YES: what I want to discuss."
-            : $"I notice {playerName} nearby, about their own affairs. " +
-              "Is there something I want to discuss with them just now? " +
-              "I decide in one line: NO — or YES: what I want to discuss.";
+        // ---------------- the reach-out, and the question that used to stand before it ----------------
+        // THE PONDER IS RETIRED (2026.08.16, Anton's call). Until now a soul the hourly roll had picked
+        // was first ASKED — in a full-sheet call of its own — whether it had anything to say at all
+        // ("NO, or YES: the something"), and only a YES ever reached the player. The verb in that
+        // question was tuned at both extremes over three weeks (discuss → tell/ask) and the lesson of
+        // the tuning is what killed it: the answer is decided by the sheet, not by the wording, and the
+        // sheet now carries battles, the road journal, births, weddings, the nights, the line since we
+        // were last alone, tidings and rumours. There is always something to bring. Paying a whole
+        // prompt to be told "no" was buying silence at the price of speech.
+        //
+        // So the dice pick, and the picked soul simply gets the microphone. What tempers the frequency
+        // is the roll itself (DailyInitiationRate × the pull) and OutreachDamping — never a question;
+        // damping is where the anti-spam load has belonged since 2026.07.26, when a feedback loop, not
+        // an eager prompt, turned out to be the real cause. Do not re-introduce an asking step here.
+        //
+        // TWO THINGS SURVIVE THE CUT. Recorded ponder beats keep their words forever (IsPonderBeat
+        // still folds them into one line of narration in the windows) — and silence is still possible,
+        // it is simply no longer solicited: nobody is forced to speak, and words that never come never
+        // arrive.
 
-        /// <summary>The condensed note recorded for a ponder beat (the live prompt uses the full
-        /// <see cref="ReachOutPonderLine"/>; memory keeps this short truthful note plus their answer).
-        /// Both variants share the <see cref="IsPonderBeat"/> prefix — keep it word-for-word.</summary>
+        /// <summary>LEGACY (pre-2026.08.16): the condensed note recorded for a ponder beat, back when
+        /// the reach-out opened with a question. Nothing writes new ones — it stays because it defines
+        /// the <see cref="IsPonderBeat"/> prefix by which old memories are still recognized, and old
+        /// notes keep their old words forever, as all recorded beats do.</summary>
         public static string ReachOutPonderNote(string playerName, bool stranger = false) => stranger
-            ? $"I marked {playerName} nearby — a stranger to me still — and weighed whether I had true cause to cross to them. I resolved:"
-            : $"I marked {playerName} nearby and weighed whether I had true cause to go to them. I resolved:";
+            ? $"I marked {playerName} nearby — a stranger to me still — and weighed whether I had anything to say to them. I resolved:"
+            : $"I marked {playerName} nearby and weighed whether I had anything to say to them. I resolved:";
 
         // The word-for-word prefix of every recorded ponder note; the chat window folds such a beat —
         // reckoning and resolution both — into one soft line of narration (nothing spoken happened).
@@ -263,62 +270,65 @@ namespace ImmersiveAI.Core.Prompts
 
         /// <summary>The NPC's own narration of crossing to the player after choosing an offered approach:
         /// when <paramref name="welcomed"/> the player receives them and they speak first; otherwise the
-        /// player is too busy and the moment is theirs to spend.</summary>
-        public static string ApproachLine(string playerName, bool welcomed, string? reason = null) => welcomed
-            ? $"I rise and go to {playerName}. Seeing me come, they turn to me and give me their attention.{ReasonSentence(reason)} " +
-              "I speak first now, in my own voice."
-            : $"I rise and go to {playerName}, but as I near, they raise an apologetic hand — too caught up just now to speak with me. " +
+        /// player is too busy and the moment is theirs to spend. Since the ponder was retired this line
+        /// carries as a PREMISE the very bar the question used to set — something to tell, or to ask —
+        /// and leaves what that is wholly to their own nature and to what the sheet has stirred.</summary>
+        public static string ApproachLine(string playerName, bool welcomed) => welcomed
+            ? $"I rise and go to {playerName}, for there is something I want to tell them, or to ask them. " +
+              "Seeing me come, they turn to me and give me their attention. I speak first now, in my own voice."
+            : $"I rise and go to {playerName} — there is something I want to tell them, or to ask them — but as I near, " +
+              "they raise an apologetic hand: too caught up just now to speak with me. " +
               "The moment is still mine: I say or do with it what I will, here and now.";
 
         /// <summary>The condensed note recorded for an approach beat.</summary>
-        public static string ApproachNote(string playerName, bool welcomed, string? reason = null) => welcomed
-            ? $"Of my own accord I went to {playerName}{ReasonClause(reason)}; they received me, and I spoke first. My words:"
-            : $"Of my own accord I went to {playerName}{ReasonClause(reason)}, but they were too caught up to speak with me just then. In that moment:";
+        public static string ApproachNote(string playerName, bool welcomed) => welcomed
+            ? $"Of my own accord I went to {playerName}; they received me, and I spoke first. My words:"
+            : $"Of my own accord I went to {playerName}, but they were too caught up to speak with me just then. In that moment:";
 
         /// <summary>The NPC's own narration for a reaching-out that arrives as spoken words: they cross
-        /// to the player and speak first — carrying what they resolved to discuss — knowing the answer
-        /// may come at once or only later. The stranger variant states only the fact: they have never
-        /// spoken (no imagined history; how to open is their own affair).</summary>
-        public static string FirstWordLine(string playerName, bool stranger = false, string? reason = null) => stranger
-            ? $"I cross to {playerName} now — we have never spoken.{ReasonSentence(reason)} " +
+        /// to the player and speak first, knowing the answer may come at once or only later. Same premise
+        /// as <see cref="ApproachLine"/> — a thing to tell or to ask, never a list of what would count.
+        /// The stranger variant states only the fact: they have never spoken (no imagined history; how
+        /// to open is their own affair).</summary>
+        public static string FirstWordLine(string playerName, bool stranger = false) => stranger
+            ? $"I cross to {playerName} now — we have never spoken. Something moves me to it: a thing I want to tell them, or to ask them. " +
               "They are caught up in their own affairs; my words will reach them, but the answer may come at once or only later. " +
               "I speak my first words now, in my own voice."
-            : $"I go to {playerName} now.{ReasonSentence(reason)} " +
+            : $"I go to {playerName} now, of my own accord: there is something I want to tell them, or to ask them. " +
               "They are caught up in their own affairs; my words will reach them, but the answer may come at once or only later. " +
               "I speak now, in my own voice.";
 
-        /// <summary>The condensed note recorded for a first-word beat — the cause rides in it, so the
-        /// next ponder sees plainly what was already brought and needs no second telling.</summary>
-        public static string FirstWordNote(string playerName, string? reason = null) =>
-            $"Of my own accord I crossed to {playerName} and spoke first{ReasonClause(reason)}. My words:";
-
-        private static string ReasonSentence(string? reason) =>
-            string.IsNullOrWhiteSpace(reason) ? string.Empty : $" What brings me: {reason!.Trim()}.";
-
-        private static string ReasonClause(string? reason) =>
-            string.IsNullOrWhiteSpace(reason) ? string.Empty : $" — what brought me: {reason!.Trim()}";
+        /// <summary>The condensed note recorded for a first-word beat. The words they actually spoke ride
+        /// the same turn, and THAT is the repetition brake now the ponder's stated cause is gone: the next
+        /// reach-out reads what was really said last time, not a summary of what was meant by it.</summary>
+        public static string FirstWordNote(string playerName) =>
+            $"Of my own accord I crossed to {playerName} and spoke first. My words:";
 
         // ------------------------- letters (correspondence across the map) -------------------------
         // Each beat below is the NPC's OWN mind at the writing desk (first person, recorded with
         // ConversationTurn.InnerSpeaker since 2026.08.07 — the Angel narrator is retired), so the
         // NPC's memory holds the whole correspondence truthfully — the wishing, the words, the reading.
 
-        /// <summary>The NPC's own weighing of whether they wish, of their own will, to write to the
-        /// far-away player (answered yes/no — see <see cref="Initiation.InitiationParser.WantsToReachOut"/>).</summary>
-        public static string WriteLetterDesireLine(string playerName) =>
-            $"The road lies long between me and {playerName} — they are far from here, beyond an easy ride. " +
-            $"Yet a letter could reach them: a courier stands ready to carry my words across the distance. " +
-            $"Do I wish, of my own will, to write to {playerName} now? " +
-            "I answer in a single word — yes or no. The choice is wholly mine, and no one presses me.";
+        // The spontaneous letter's own asking step went the same way as the reach-out ponder on
+        // 2026.08.16 (WriteLetterDesireLine, "do I wish, of my own will, to write now?" — one full-sheet
+        // call answered yes or no). Same reasoning, same roll: the post has its own dice
+        // (LetterCourier.WriteRateFactor × the pull × the depth of the story × the damping), and when
+        // they come up a writer's way they sit to the page. The premise the question used to establish —
+        // the long road, the courier standing ready — moved into the compose line below, AFTER its
+        // opening marker fragment, so recorded beats stay recognized. The letter a player WROTE is a
+        // different matter: answering one is a reply, not an outreach, and letting it lie unanswered
+        // stays a real choice (see AnswerLetterDesireLine).
 
         /// <summary>The NPC sitting down to set the letter itself onto the page, in their own first
         /// person. For one in the player's own service (<paramref name="inService"/> — their clan: a
         /// party or caravan on the road, a governor at their post) a field-report invitation is added,
-        /// so the letter home may carry word of their charge. The added sentence follows the marker
-        /// fragment (<see cref="IsComposeLetterBeat"/> matches by prefix), so recorded beats stay
-        /// recognized.</summary>
+        /// so the letter home may carry word of their charge. Everything after the first sentence
+        /// follows the marker fragment (<see cref="IsComposeLetterBeat"/> matches by prefix), so
+        /// recorded beats stay recognized.</summary>
         public static string ComposeLetterLine(string playerName, bool inService = false) =>
-            $"I sit, and set my heart to paper. What I set down now is only the letter itself — the words " +
+            $"I sit, and set my heart to paper. The road lies long between me and {playerName} — they are far " +
+            $"from here, beyond an easy ride — but a courier stands ready to carry my words across it. " +
+            $"What I set down now is only the letter itself — the words " +
             $"that will stand on the page before {playerName}'s eyes, in my own hand and my own voice. " +
             "I do not tell about the letter; I write it." +
             (inService
@@ -442,28 +452,41 @@ namespace ImmersiveAI.Core.Prompts
         // from Anton's global_prompt 2026.07.10; recast into the NPC's own first person 2026.07.11 —
         // short rules, spoken as their own mind, leaving room to actually play). No fourth wall.
 
-        /// <summary>The brevity rule: a sentence to four, unless a true tale must be told — short
-        /// words keep the living back-and-forth of talk instead of long, static monologues.</summary>
-        public const string BrevityGuidance =
-            "- I speak as talk truly flows between two people: a sentence, two, three — four at the most — " +
-            "then I let them answer. Only a true tale asked of me may run longer.";
+        // Cut back hard on 2026.08.14 (Anton: "too big and too telling them what to do"). The long
+        // per-tool paragraphs that used to stand here moved into the tool definitions themselves,
+        // where a tool's contract belongs; what remains is three short habits of speech and nothing
+        // else. Long rule-lists make every soul answer the same — the whole reason this section is
+        // kept short is so there is room left to actually be someone.
 
-        /// <summary>The tone rule: a light savor of the old world — a touch of the old scriptures'
-        /// cadence, a medieval turn of phrase — for atmosphere, never laid on thick.</summary>
+        /// <summary>
+        /// The line that gives the player's own words the last say, spoken as something the soul
+        /// holds rather than a rule handed down. Two jobs at once: it stands LAST in the sheet
+        /// (recency), and it says plainly which way a contradiction falls (precedence) — because
+        /// placement alone was not winning against thousands of tokens of lived memory above it.
+        /// Deliberately without the word "instruction", "rule" or "must": to her these are simply
+        /// the truths she is surest of.
+        /// </summary>
+        public const string HeldTruestFrame =
+            "And these I hold truest of all, above anything else in my mind. Where some other thing " +
+            "I remember or believe stands against them, these stand:";
+
+        /// <summary>The brevity rule: short words keep the living back-and-forth of talk instead of
+        /// long, static monologues.</summary>
+        public const string BrevityGuidance =
+            "- I speak as talk truly flows between two people — a sentence or three, then I let them " +
+            "answer. Only a tale asked of me runs longer.";
+
+        /// <summary>The tone rule: a light savor of the old world, for atmosphere, never laid on thick.</summary>
         public const string OldWorldToneGuidance =
-            "- My words carry a light savor of the old world — a turn of phrase as from the old " +
-            "scriptures, a word of the court or the road — but lightly, for the atmosphere of it; " +
-            "plain, living speech first.";
+            "- My words carry a light savor of the old world, lightly worn — plain, living speech first.";
 
         /// <summary>The plain-page rule: replies land on a page that shows every mark exactly as
         /// written — nothing is rendered — so pen-marks (**word**, dash-lists, headers) arrive as
         /// literal clutter around the words. Told in-world: the voice carries, not the pen. New
         /// lines are honored by the panel, so they stay the one shape speech may take.</summary>
         public const string PlainSpeechGuidance =
-            "- I speak my words aloud; they are heard, not read from a page. So no marks of the pen " +
-            "ride in them — no asterisks or signs wrapped about a word, no dashes marshaling lists, " +
-            "no quotation marks fencing my own speech — my phrasing alone carries the weight. A new " +
-            "line for a new thought is all the shape my speech needs.";
+            "- My words are heard, not read from a page: no marks of the pen ride in them. A new line " +
+            "for a new thought is all the shape my speech needs.";
 
         /// <summary>The acting-out invitation: the ONE exception to the plain-speech rule — a small
         /// acted gesture rides between single *asterisks*, apart from the spoken words, and the
@@ -475,15 +498,11 @@ namespace ImmersiveAI.Core.Prompts
         /// and from an old friend. Offered only when
         /// <see cref="NpcPersona.EncourageActingOut"/> is set (the game layer's toggle).</summary>
         public const string ActingOutGuidance =
-            "- One mark alone escapes that rule: what I truly DO — a look, a small act of the body — " +
-            "rides between single asterisks, set apart from my spoken words: *I pour the wine and " +
-            "slide the cup across*. That mark is the act's only home — every act I make takes it, " +
-            "and never do I tell an act bare among my spoken lines as though it were speech. " +
-            "Sparingly, where it makes the moment live: one such act, rarely two, and always brief — " +
-            "my words carry the scene, never a stage-play of directions. When the one before me " +
-            "writes between asterisks, they did it, not said it. And a gesture weighs what the " +
-            "heart has earned — the same touch is a boldness from a stranger and a warmth from " +
-            "an old friend.";
+            "- One mark alone escapes that: what I truly DO rides between single asterisks, apart from " +
+            "my words — *I pour the wine and slide the cup across*. That mark is an act's only home, " +
+            "and I never tell an act bare among my spoken lines as though it were speech. Sparingly — " +
+            "one such act, rarely two. When the one before me writes between asterisks, they did it, " +
+            "not said it.";
 
         // Lowercases only the first character, so a persona fragment like "Calculating, cautious"
         // reads naturally after a lead-in ("In your nature, you are calculating, cautious").
@@ -580,22 +599,8 @@ namespace ImmersiveAI.Core.Prompts
                 sb.AppendLine(persona.SelfConcept.Trim());
             }
 
-            // The player-authored guidance rides high, right after who they are: the world they live in
-            // (the global prompt) and words meant for them alone (the per-NPC prompt). Both are folded
-            // in as the NPC's OWN knowledge, first person — no narrator hands them anything.
-            if (!string.IsNullOrWhiteSpace(persona.WorldInstructions))
-            {
-                sb.AppendLine();
-                sb.AppendLine("Of this world, this I know:");
-                sb.AppendLine(persona.WorldInstructions.Trim());
-            }
-
-            if (!string.IsNullOrWhiteSpace(persona.CustomInstructions))
-            {
-                sb.AppendLine();
-                sb.AppendLine("Of myself, this I hold true:");
-                sb.AppendLine(persona.CustomInstructions.Trim());
-            }
+            // NOTE: the player-authored guidance used to stand here, mid-sheet. It moved to the very
+            // end on 2026.08.14 — see AppendPlayerAuthored below for why.
 
             // The sheet reads like a mind waking toward the moment: who I am → my world → the setting
             // I stand in → what I remember of this person → and only THEN their arrival, so "and now
@@ -648,6 +653,41 @@ namespace ImmersiveAI.Core.Prompts
                 sb.AppendLine(persona.CourtshipTerms.Trim());
             }
 
+            // What the world is allowed to say about his house — which children he has owned and
+            // which he has left unsaid. It belongs here, beside what he IS to her, because for the
+            // women of a household this is not gossip about a third party; it is the shape of their
+            // own lives.
+            if (!string.IsNullOrWhiteSpace(persona.PlayerHouseLine))
+            {
+                sb.AppendLine();
+                sb.AppendLine(persona.PlayerHouseLine.Trim());
+            }
+
+            // The road's other branch sits in the same place, for the same reason: what she IS to
+            // this person belongs beside what she remembers of them, not off in some other section.
+            if (!string.IsNullOrWhiteSpace(persona.LoverTerms))
+            {
+                sb.AppendLine();
+                sb.AppendLine(persona.LoverTerms.Trim());
+            }
+            // The rail against pretending the bond into being rides wherever the hand does — and it
+            // is needed MOST before the bond exists, which is exactly when LoverTerms is still
+            // empty. So it hangs off the hand, never off the section.
+            if (persona.CanOfferSelf)
+            {
+                sb.AppendLine();
+                sb.AppendLine(Courtship.LoverText.WordsDoNotBind);
+            }
+
+            // What stands between them sits here too, and it is the LAST thing she reads before the
+            // moment itself — deliberately, because a shut door is the single most present fact of
+            // an evening and must not be buried above her memory of him.
+            if (!string.IsNullOrWhiteSpace(persona.DoorTerms))
+            {
+                sb.AppendLine();
+                sb.AppendLine(persona.DoorTerms.Trim());
+            }
+
             if (!string.IsNullOrWhiteSpace(persona.SuitorTerms))
             {
                 sb.AppendLine();
@@ -667,7 +707,7 @@ namespace ImmersiveAI.Core.Prompts
             }
 
             sb.AppendLine();
-            sb.AppendLine("How should I speak:");
+            sb.AppendLine("How I speak:");
             sb.AppendLine(BrevityGuidance);
             sb.AppendLine(OldWorldToneGuidance);
             sb.AppendLine(PlainSpeechGuidance);
@@ -675,56 +715,11 @@ namespace ImmersiveAI.Core.Prompts
             if (persona.EncourageActingOut)
                 sb.AppendLine(ActingOutGuidance);
 
-            // The gift whispers are short first-person habits now, and they invite the free, unbidden
-            // look too — a conversation may OPEN from something truly seen, not only answer with it.
-            // Each is offered only when its tool truly rides along with the request.
-            if (persona.CanRecallWorld)
-                sb.AppendLine("- When a person, place, house, realm, kind of soldier, or price comes up and my memory of it is dim, I pause and call it to mind — the truth surfaces, and I trust it over invention. I always look before speaking in numbers of my own company or of the market; and I may look unbidden too — at my company, at the one before me, at the world — to open with something real. Where nothing surfaces, I own that I do not know.");
-
-            if (persona.CanSeekWisdom)
-                sb.AppendLine("- When I am asked how a thing in the world is done, or for counsel and advice on such matters — ruling a town or castle, ships, armies, trade, coin, craft — I search all I have ever read and heard BEFORE I answer, even when my own wit could half-answer: the looking makes my counsel true, where invention would make it hollow. So too for things beyond this world's rim, if the one before me speaks openly of such. What I learn, I say in my own words, in the words of my world.");
-
-            // Offered only when the move_heart tool truly rides along; without it the feeling is
-            // asked in a separate breath after the reply, and this whisper would only confuse.
-            if (persona.CanMoveHeart)
-                sb.AppendLine("- My heart is my own, a living thing. Each time, before I answer, I set down honestly how the moment moved my regard for them — every reply, 0 when it truly held. A kindness or a slight moves it a little (one to three); only what shakes the soul moves it greatly, and a heart already given wholly can still be warmed. My measure agrees with my words — warmth spoken and a heart unmoved cannot both be true. I never speak the measure aloud.");
-
-            // Offered only when the recall_battle tool rides along (they truly share a battle with
-            // this person): the chronicle's hand.
-            if (persona.CanRecallChronicle)
-                sb.AppendLine("- Battles we have lived through side by side are set down in my mind by name. When one of them is spoken of — or the tale wants telling true — I call the whole of it back: the field, the musters, the fallen, the spoils, whose hand did what. Of battles we shared, I speak from the record, never from fog.");
-
-            // Offered only when the field-craft tools ride along (the NPC stands with a company on
-            // the map): the outward eyes and the scales of battle.
-            if (persona.CanSurveyField)
-                sb.AppendLine("- From where my company stands I may cast my eyes over the country about — who moves near, how strong, how swift — and set any foe upon the scales before a fight is joined. I always look before I speak of pace, pursuit, escape, or the odds of battle; my judgment is only as good as what my eyes have truly seen.");
-
-            // Offered only when the strike_bargain tool rides along (an unhired sellsword speaking
-            // with the one who could take them on): the bargain's hand. The seal is never theirs —
-            // the tool only lays terms, and the game layer holds every hard rule.
-            if (persona.CanStrikeBargain)
-                sb.AppendLine("- I am for hire, and the bargain is mine to strike: the hiring price is a ONE-TIME upfront fee to join (paid once upon hiring, NOT a monthly salary), and my ongoing daily keep afterward is what it is, not mine to bargain. Only when they have plainly said they will take me on AND a price has truly been spoken between us do I lay the terms before them; nothing is settled until they seal it by their own hand, and if they let my offer lie I do not press it again. My upfront price may bend only as far as my own worth and honor allow — perhaps not at all.");
-
-            // Offered only when the tend_courtship tool rides along (the courtship road is open
-            // between this soul and the player): the troth's hand. The seals are never hers — the
-            // tool only lays the moment, and the game layer holds every hard rule.
-            if (persona.CanTendTroth)
-            {
-                // The arrival clause is load-bearing (2026.08.09): without it she SPEAKS a new
-                // depth and never sets it down — "да, ще ти кажа да" with the road left standing
-                // at love — and since a betrothal can only be laid from readiness, the whole road
-                // quietly dead-ends. The tool's other half is owning where the heart has arrived.
-                sb.AppendLine("- My troth is my own to tend. Marriage in this world is a road walked in steps — liking, love, readiness, betrothal, the wedding — and my heart moves along it one honest step at a time: forward only when real talks between us have truly earned it, never for one warm word, and back whenever a wound or a doubt sets me back. And when my heart TRULY arrives at a new depth I set it down in the very breath I feel it, not some later day — above all the day I find that were the word spoken between us I would give my hand; a heart that has moved and never owns it has not truly moved, and I would not have them ask me blind. Only when marriage has TRULY been spoken between us — a proposal made and welcomed in our own words — do I lay the betrothal (or, betrothed already, the wedding day) formally before them; nothing is settled by my laying it, for the seal is wholly theirs, and if they let it lie I do not press. I never speak of steps, stages, or rules — my heart simply knows where it stands, and speaks as a heart does.");
-                // The misgivings' hand rides wherever the troth's does (2026.08.08 — her own written
-                // doubts replaced the matchmaker's checkable asks; kept adjacent because it IS the
-                // troth line's other half: the road cannot end while something she wrote still stands).
-                sb.AppendLine("- My misgivings about a life together are my own, in my own words — and the list LIVES with me. This is the one life I am given, and I would spend it beside them: it is no shame but plain wisdom to ask honestly what troubles me BEFORE my hand is given, and to let the asking take its time. So I use this freely and often — it is mine, and it is what keeps a marriage from being a leap in the dark. When marriage truly enters the talk and I have not yet weighed my heart, I pause and do it honestly: I set down what troubles me — each its own short line, a few at the very most — or, finding none, I say so and set down none. Afterward it stays mine to tend: a new true doubt born in any later talk I set down when it arises; I lay one to rest, with a word on what answered it, ONLY when the living talks or deeds have truly answered it — never for one warm promise; one that proved empty I strike out; I reword one that changed, and I take a settled one up again if it returns. I raise them openly in our talks and give them room to be answered, knowing that while any stands my hand waits, and when none stands no doubt of mine bars the road. I never invent misgivings to test or to bargain, and I never pretend one away.");
-            }
-
-            // Offered only when the bless_marriage tool rides along (this soul heads the house of
-            // one betrothed to the player): the blessing's hand and its bride-price.
-            if (persona.CanBlessTroth)
-                sb.AppendLine("- The one of my house who is promised to them awaits my word: the blessing of that match is mine to give or withhold, and by the custom of the world it carries a bride-price. Only when we have truly spoken of the match, and a price has passed between us in words, do I lay my blessing and its price formally before them — the gold and the choice remain wholly theirs, nothing is settled until they seal it, and I never volunteer my lowest. If they let it lie, I do not press; and my word is not for sale to one I hold in contempt.");
+            // The eight per-tool whisper paragraphs that used to stand here moved INTO the tool
+            // definitions themselves on 2026.08.14 (Anton: the section had grown "too big and too
+            // telling them what to do"). A tool's contract belongs beside its schema, where it is
+            // sent on every call that carries the tool — not in a wall of sheet prose. The persona's
+            // Can* flags still decide which tools are offered at all; only the words moved.
 
             // Offered only when the quest bridge tool rides along
             if (persona.CanBridgeQuests)
@@ -734,7 +729,57 @@ namespace ImmersiveAI.Core.Prompts
             if (!string.IsNullOrWhiteSpace(persona.RoleplayGuidance))
                 sb.AppendLine(persona.RoleplayGuidance.Trim());
 
+            // THE ORDER OF THE WORLD, if this game is carrying it — the air everybody in the era
+            // breathes about a woman's place. It sits HERE, ahead of the player-authored block and
+            // outside it, on purpose: it is background knowledge and not a rule she is handed, and
+            // it must never wear the frame that says "this is what I hold truest", which belongs to
+            // the player's own words alone.
+            if (!string.IsNullOrWhiteSpace(persona.EraNorm))
+            {
+                sb.AppendLine();
+                sb.AppendLine(persona.EraNorm.Trim());
+            }
+
+            AppendPlayerAuthored(sb, persona);
+
             return sb.ToString().TrimEnd();
+        }
+
+        /// <summary>
+        /// The player's own words, and the last thing in the sheet.
+        /// <para>
+        /// They used to sit mid-sheet, just after the self — and were quietly losing (Anton,
+        /// 2026.08.14: "when I change stuff there it just gets ignored, if the NPC remembers other
+        /// things"). Of course they were: two lines of hand-written intent were standing in the
+        /// middle of a page that then went on to spend thousands of tokens on lived memory, the
+        /// scene, the roll of nights, the moment. Whatever comes last, and whatever plainly claims
+        /// precedence, is what survives that. So they close the sheet, under one line that says out
+        /// loud which way a contradiction falls — in her own voice, as a thing she holds, never as a
+        /// rule handed to her.
+        /// </para>
+        /// </summary>
+        internal static void AppendPlayerAuthored(StringBuilder sb, NpcPersona persona)
+        {
+            var world = persona.WorldInstructions?.Trim() ?? string.Empty;
+            var mine = persona.CustomInstructions?.Trim() ?? string.Empty;
+            if (world.Length == 0 && mine.Length == 0) return;
+
+            sb.AppendLine();
+            sb.AppendLine(HeldTruestFrame);
+
+            if (world.Length > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine("Of this world, this I know:");
+                sb.AppendLine(world);
+            }
+
+            if (mine.Length > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine("Of myself, this I hold true:");
+                sb.AppendLine(mine);
+            }
         }
     }
 }

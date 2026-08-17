@@ -14,7 +14,7 @@ namespace ImmersiveAI.Core.Initiation
     ///
     /// where each factor in [0,1] pulls it down toward silence:
     ///   - frequency: how much has ever been shared, saturating at <see cref="FrequencyFullAt"/> exchanges.
-    ///   - closeness: how far the standing is from indifference, |relation| / 100 (love OR enmity both pull).
+    ///   - closeness: how WARM the standing is, relation / 100 — affection alone; see <see cref="Coldness"/>.
     ///   - recency: gently decays if they have not spoken lately, so a long-quiet bond grows quiet.
     ///
     /// The config's <c>DailyInitiationRate</c> is the expected number of reach-outs per day IN TOTAL,
@@ -53,6 +53,13 @@ namespace ImmersiveAI.Core.Initiation
         /// close in time spent. Keeps the feature observable rather than near-impossible to ever see.</summary>
         public const double ClosenessFloor = 0.15;
 
+        /// <summary>How much of their pull is left at the very bottom of ill feeling (relation −100):
+        /// a twentieth. Deliberately NOT zero — Anton, 2026.08.16: "let's move from total silence, cap it
+        /// to something small". A soul who despises the player may still, once in a long while, come and
+        /// say so; what they may not do is behave like a devoted friend, which is what the old symmetric
+        /// |relation| had them doing.</summary>
+        public const double ColdestFactor = 0.05;
+
         /// <summary>Recency floor for someone in the player's own service (their clan: companions
         /// leading parties and caravans, kin, governors). Bonds of AFFECTION fade with silence; a
         /// bond of DUTY does not — a caravan away for forty days doing the player's bidding is
@@ -62,6 +69,25 @@ namespace ImmersiveAI.Core.Initiation
         /// <summary>Closeness floor for someone in the player's own service: duty stands in for
         /// affection, so even a near-neutral standing keeps the field reports coming.</summary>
         public const double DutyClosenessFloor = 0.5;
+
+        /// <summary>How much likelier the one the player is WED TO is to come to them than a companion
+        /// of the very same shared story — Anton's number, 2026.08.15: "she is the hearth of this mod".
+        /// Three times <see cref="CompanionHearthFactor"/>. Unlike every other factor in this class it
+        /// is not earned by anything: it multiplies the stranger's presence floor too, so a wife the
+        /// player has never once spoken with still crosses the room to begin their story.</summary>
+        public const double SpouseHearthFactor = 4.5;
+
+        /// <summary>The second hearth: the player's own household — their companions, and the kin and
+        /// lords of their clan — are likelier to come than the nobles and townsfolk around them.
+        /// Deliberately a nudge and not a landslide (Anton: "not as dramatically… maybe touch them a
+        /// bit"), because who they are is already carried by the bond itself.</summary>
+        public const double CompanionHearthFactor = 1.5;
+
+        /// <summary>A lover's rung, between the two (2026.08.15). Well above a companion — she has
+        /// far more reason to seek him out than a sworn sword does — and well below the wife,
+        /// because Anton's 4.5 was for the one he is WED to, and letting the fall be louder than the
+        /// marriage would invert the whole point of the batch it belongs to.</summary>
+        public const double LoverHearthFactor = 2.5;
 
         /// <summary>Days a soul rests after ANY outreach of their own (even a welcomed one) before their
         /// pull fully returns — a visit paid is a visit paid; no one knocks twice in the same afternoon.</summary>
@@ -96,7 +122,7 @@ namespace ImmersiveAI.Core.Initiation
             if (storyRichness <= 0) return 0;
 
             double frequency = Math.Min(1.0, storyRichness / (double)FrequencyFullAt);
-            double standing = Math.Min(1.0, Math.Abs(relation) / 100.0);
+            double standing = Math.Min(1.0, Math.Max(0, relation) / 100.0);
             double closeness = ClosenessFloor + (1.0 - ClosenessFloor) * standing;
             double recency = RecencyFactor(daysSinceLastTalk);
 
@@ -106,10 +132,39 @@ namespace ImmersiveAI.Core.Initiation
                 recency = Math.Max(recency, DutyRecencyFloor);
             }
 
-            double pull = frequency * closeness * recency;
+            // The cold rides LAST, over the duty floors as well: a governor who has come to dislike the
+            // player still files his report, but he files it the way a cold man does — rarely.
+            double pull = frequency * closeness * recency * Coldness(relation);
             if (pull < 0) pull = 0;
             if (pull > 1) pull = 1;
             return pull;
+        }
+
+        /// <summary>
+        /// THE COLD (2026.08.16, Anton's design). How much a soul's ill feeling quiets them, a
+        /// multiplier in [<see cref="ColdestFactor"/>, 1] on their whole pull: 1 at indifference and
+        /// above, falling straight down to a twentieth at relation −100.
+        ///
+        /// It replaces the old symmetric |relation| closeness, which held that "love OR enmity both
+        /// pull" and therefore made a wife who has come to hate the player seek him out exactly as
+        /// eagerly as one who adores him. That was backwards for the case the whole marriage batch is
+        /// built around: he wrongs her, she closes her door at night, she goes cold — and the mod
+        /// answered by having her cross the room MORE. The cold now runs one way through everything:
+        /// fewer visits, fewer letters, and the door she has already shut.
+        ///
+        /// NOT zero at the bottom (see <see cref="ColdestFactor"/>) — a hatred that can never once
+        /// speak is a soul deleted rather than a soul cold.
+        ///
+        /// WHAT IT MUST NEVER TOUCH is the fresh wound (<see cref="WoundSpike"/>), which is a FLOOR
+        /// applied over the finished pull. Learning of the wrong is exactly what drove the relation
+        /// down, so chilling the spike with it would silence the one moment the wound exists for.
+        /// The order is deliberate: she comes once while it is news, and THEN the cold takes over.
+        /// </summary>
+        public static double Coldness(int relation)
+        {
+            if (relation >= 0) return 1.0;
+            double depth = Math.Min(1.0, -relation / 100.0);          // 0 at indifference, 1 at −100
+            return 1.0 - (1.0 - ColdestFactor) * depth;
         }
 
         /// <summary>
@@ -136,6 +191,40 @@ namespace ImmersiveAI.Core.Initiation
             double rest = Math.Min(1.0, daysSinceOutreach / patience);
             double pride = Math.Pow(UnansweredPrideFactor, unanswered);
             return rest * pride;
+        }
+
+        /// <summary>How long a fresh wound stays hot, in hours. Anton's window: the confrontation
+        /// should come while it still is one — the morning after, not next week.</summary>
+        public const double WoundFreshHours = 36.0;
+
+        /// <summary>How strongly a fresh wound moves her, at the moment she learns of it. High
+        /// enough that a bond with almost no pull of its own still crosses the room, because the
+        /// woman who most needs to say something is very often the one who has been talked to
+        /// least.</summary>
+        public const double WoundSpikeAtOnce = 0.85;
+
+        /// <summary>
+        /// THE MORNING AFTER (2026.08.15). She has just learned something — that he went to
+        /// another, that another woman is his now — and for a day and a half it is the loudest
+        /// thing in her. Then it stops being news, the ordinary damping takes back over, and what
+        /// follows is the cold silence, which the design record is quite clear is the worse
+        /// punishment anyway.
+        ///
+        /// It is a FLOOR rather than a multiplier on purpose: multiplying a near-zero pull leaves a
+        /// near-zero pull, and then the single most important moment the feature has would be
+        /// silently eaten by a quiet bond.
+        ///
+        /// THE GROUP-TOTAL LAW IS UNTOUCHED, and structurally so rather than by care: a higher pull
+        /// only pushes <see cref="UnionPull"/> nearer 1, and the day's expectation stays
+        /// rate × unionPull ≤ rate. A wounded woman does not add visits to the day; she becomes the
+        /// one whose visit it is.
+        /// </summary>
+        public static double WoundSpike(double hoursSinceWound)
+        {
+            if (hoursSinceWound < 0 || double.IsNaN(hoursSinceWound)) return 0;
+            if (hoursSinceWound >= WoundFreshHours) return 0;
+            double freshness = 1.0 - hoursSinceWound / WoundFreshHours;
+            return WoundSpikeAtOnce * freshness;
         }
 
         /// <summary>

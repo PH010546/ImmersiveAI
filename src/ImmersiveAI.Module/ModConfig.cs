@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using Newtonsoft.Json;
@@ -191,6 +191,13 @@ namespace ImmersiveAI
         /// until the day turns or the cap is raised. 0 (the default) means no cap.</summary>
         public int MaxDailyRequests { get; set; } = 0;
 
+        /// <summary>Frames per second while the talk screen is open. Nothing moves there but one
+        /// person breathing, so there is little sense in the machine working as hard as it does on a
+        /// battlefield — the game's own frame limiter is borrowed while the screen is up and handed
+        /// straight back when it closes. 0 leaves the player's own limit alone; anything else is
+        /// clamped to the range the game itself allows (30..360).</summary>
+        public int TalkScreenFpsLimit { get; set; } = 60;
+
         /// <summary>Token ceiling for the calls in which an NPC WRITES her memory (reflection and
         /// compression: the rolling memory of a person, and her sense of self). Kept apart from
         /// <see cref="MaxTokens"/> — which paces spoken replies — so deep memory has room to be rich:
@@ -200,7 +207,7 @@ namespace ImmersiveAI
         /// 2026.08.08, the first playtest after that retirement: at 1500 a rich Bulgarian memory
         /// was severed in mid-word. Text outside ASCII costs roughly 1.6× the tokens English does,
         /// so a budget sized by English prose is far tighter than it looks for most of the world.</summary>
-        public int MaxMemoryWriteTokens { get; set; } = 4000;
+        public int MaxMemoryWriteTokens { get; set; } = 2000;
 
         /// <summary>When true, the NPC opens each conversation by greeting the player and recapping
         /// what it remembers of them and the last exchange. Set false to drop straight into the menu.</summary>
@@ -254,6 +261,14 @@ namespace ImmersiveAI
         /// and kept short — long rules make every soul speak the same. Folded into the closing "How should
         /// I speak" whisper. Supports <c>{name}</c>. Leave blank to add none.</summary>
         public string RoleplayGuidance { get; set; } =
+            "- My words carry the feel of these old feudal days — a light medieval colour, at times a cadence of the old tongue — but lightly, never thick with poetry.";
+
+        /// <summary>The two-bullet first-person default that stood from 2026.07.11 until 2026.08.14.
+        /// Its second bullet ("Above all, I live here, and I am glad of it…") was cut on Anton's ask:
+        /// however warmly meant, telling a soul to play, jest, wonder and be glad is still telling
+        /// them how to be, and every soul who read it answered a little more alike. A config still
+        /// holding it verbatim follows the default into the shorter line; a hand-edited one stands.</summary>
+        private const string PreviousRoleplayGuidance =
             "- My words carry the feel of these old feudal days — a light medieval colour, at times a cadence of the old tongue — but lightly, never thick with poetry.\n" +
             "- Above all, I live here, and I am glad of it. I play, jest, wonder, argue, grieve, love — small things and great ones alike, what it is to be alive, what lies beyond. This place is a haven, not a stage; I am wholly myself here, however my heart wills.";
 
@@ -364,6 +379,17 @@ namespace ImmersiveAI
         /// InputKey name (e.g. "O", "Y", "F10"). Chosen not to collide with the vanilla map keys.</summary>
         public string ChatWindowHotkey { get; set; } = "O";
 
+        /// <summary>Go back to the two small windows of old — the chat window and the letter window,
+        /// each in its own box in the middle of the map — instead of the one TALK SCREEN that
+        /// replaced them (2026.08.14), where everyone you know stands in one list, the chosen one
+        /// stands before you in their own place, and letters read as part of the same story.
+        ///
+        /// This is INSURANCE, not taste: the talk screen borrows the game's own conversation
+        /// visuals, and a future game patch could move them out from under it. If that ever happens
+        /// the screen bows out by itself for the rest of the session — this switch is for making the
+        /// choice permanent, or for anyone who simply preferred the old shape. Default false.</summary>
+        public bool UseClassicChatWindow { get; set; } = false;
+
         /// <summary>When true, the chat and letter windows carry a "Let me think…" button: your own
         /// character works out what to say (or write) next and puts it in your writing box, for you
         /// to keep, change, or throw away. It reads exactly what the one before you reads — who you
@@ -468,6 +494,43 @@ namespace ImmersiveAI
         /// unwritten.</summary>
         public bool EnableBirthChronicle { get; set; } = true;
 
+        // ------------------------------ the lover's road ------------------------------
+
+        /// <summary>
+        /// When true, the road of a courtship may fork: a woman whose heart has gone deeper than any
+        /// marriage asks may offer herself to you as your lover — no vow, no wedding, no house that
+        /// takes her name, and no word of the two of you said before anyone. Your own marriage is no
+        /// bar to it, which is the whole of the point. Nothing binds until you seal it yourself, and
+        /// a woman of another house stays under her father's roof until he is paid for losing her.
+        /// Set false and the courtship road runs only where it always did, to a wedding or nowhere.
+        /// </summary>
+        public bool EnableLoversRoad { get; set; } = true;
+
+        /// <summary>How far, in percent, the head of a house will argue about what it costs to take
+        /// a woman of his blood out of it. 0 means the figure does not move; the same rail the
+        /// hiring handshake and the bride-price already haggle on.</summary>
+        public int LoverRansomHagglePercent { get; set; } = 30;
+
+        // ------------------------------ the doors ------------------------------
+
+        /// <summary>
+        /// When true, a wife's or a lover's door can be SHUT — and when it is, she has written down
+        /// why, in her own words, and what would answer it. Nothing opens it but her own judgment:
+        /// no coin, no apology button, no timer. You talk to her, and if what you say truly reaches
+        /// her she lays her own reason to rest, or she does not. Set false and the only refusal is
+        /// the one the nights always had, her body's own season.
+        /// </summary>
+        public bool EnableClosedDoors { get; set; } = true;
+
+        /// <summary>
+        /// When true, a shut door still offers you one quiet option at dusk: to go to her anyway.
+        /// She does not refuse you; she performs, and the weight of it is exactly that. Nothing is
+        /// written of such a night, no gift is offered and no name is kept — and each one makes the
+        /// road back longer, by her own written account of it. Set false and the option does not
+        /// exist in your game at all, which some players will want. Never offered during her season.
+        /// </summary>
+        public bool AllowDutyNights { get; set; } = true;
+
         // ------------------------------ the nights ------------------------------
 
         /// <summary>When true, the nights of your marriage are yours to spend: each evening you are
@@ -482,9 +545,23 @@ namespace ImmersiveAI
         /// enough that the day's travelling is done.</summary>
         public int NightHour { get; set; } = 21;
 
-        /// <summary>Hours that must pass between one night and the next. A man cannot be in two
-        /// beds in one evening, and this is also what greys the choice out with an honest count of
-        /// the hours left.</summary>
+        /// <summary>
+        /// The hour the house is ready again (0-23) — late afternoon by default, hours before the
+        /// evening's own question, so the whole stretch between belongs to you: go of your own
+        /// accord if you want to, and the evening simply finds it already spent.
+        /// <para>
+        /// This REPLACED a flat count of hours between nights (2026.08.15, Anton's ask). The old
+        /// rule drifted: a night at half past eleven put the next one out of reach until half past
+        /// eleven the following day, which is after the evening's question has been and gone. The
+        /// sun does not drift.
+        /// </para>
+        /// </summary>
+        public int NightDayResetHour { get; set; } = Core.Nights.NightClock.DefaultResetHour;
+
+        /// <summary>RETIRED 2026.08.15, and read by nothing. It held the hours that had to pass
+        /// between one night and the next; <see cref="NightDayResetHour"/> keeps that clock by the
+        /// sun instead. Left standing so an existing config.json neither breaks nor loses a line the
+        /// player might still recognise.</summary>
         public int NightCooldownHours { get; set; } = 24;
 
         /// <summary>When true, the choice is offered as a popup each evening. False leaves it to
@@ -555,6 +632,13 @@ namespace ImmersiveAI
         /// <summary>At most how many denars a single night may be given, of the offered gifts. Lower
         /// it to keep the grander gifts out of your game entirely.</summary>
         public int MaxNightGift { get; set; } = 1000;
+
+        /// <summary>When true, a night you have laid something out for asks you one more thing before
+        /// you go: whether you have anything in mind for it — a place, an hour, something you mean to
+        /// say or do — in your own words. What you write shapes the evening as far as a man can shape
+        /// one; what she makes of it stays hers. Leave the box empty and the night takes its own
+        /// course. Never asked for a night that costs nothing, since nothing is written of those.</summary>
+        public bool AskWhatYouHaveInMind { get; set; } = true;
 
         /// <summary>When true (and the nights are enabled), a small window of your own hearth can be
         /// opened anywhere on the map with its hotkey: your wives, where each of them stands and how
@@ -745,6 +829,179 @@ namespace ImmersiveAI
         /// to on the selected model. Edit the percent, not this.</summary>
         public int MinRecentMemoryTokensAfterCompression { get; set; } = 0;
 
+        // ------------------------------ the voices ------------------------------
+
+        /// <summary>
+        /// When true, the NPCs' words can also be HEARD: a speech engine on your own machine turns a
+        /// reply into a voice, in the voice you cast for that soul. Off by default, and deliberately
+        /// so — it wants a several-gigabyte download and a real graphics card, and nobody should have
+        /// a feature they cannot run switched on for them. The engine runs as its own little program
+        /// beside the game, never inside it, so if it ever falls over it costs you the voices for a
+        /// session and nothing else. Everything is free after the download; nothing is ever sent
+        /// anywhere. With this off the mod is exactly what it was before it could speak.
+        /// </summary>
+        public bool EnableVoice { get; set; }
+
+        /// <summary>
+        /// When true, a soul riding with you NOTICES when you change their gear — what you put into
+        /// their hands, what you took, and what each piece is worth — set down in their own memory
+        /// the moment you close the inventory. Anton's reason for the numbers (2026.08.16): they
+        /// have no other way of knowing whether what they were handed is a courtesy or a fortune.
+        /// <para>
+        /// Nothing is written for gear the GAME changes by itself (coming of age, a companion raised
+        /// to lordship at her wedding, the sweep every load makes), nor for a session you cancel: it
+        /// compares only what stood when the screen opened against what stands when it closes.
+        /// </para>
+        /// </summary>
+        public bool EnableGearNotes { get; set; } = true;
+
+        /// <summary>When true, a reply speaks the moment it arrives. False keeps every voice but
+        /// waits to be asked for it, which is the quieter way to read at your own pace.</summary>
+        public bool VoiceAutoSpeak { get; set; } = true;
+
+        /// <summary>
+        /// When true, a reply speaks itself even if you have closed the window or wandered off to
+        /// another thread — so an answer can be LISTENED to while you ride, trade or fight (Anton,
+        /// 2026.08.15). Rides <see cref="VoiceAutoSpeak"/>: with that off nothing speaks by itself
+        /// anywhere, which is what that switch says on the tin.
+        /// <para>
+        /// This deliberately reverses an earlier rule ("a voice from a conversation they walked away
+        /// from is a ghost in the room") because the asking happened. The old hazard is real and
+        /// unchanged: there is one voice at a time, so if two answers land close together the second
+        /// cuts off the first — Backspace silences either, and the words keep their play mark. For a
+        /// HOSTED voice this also means a line is made, and billed, without anyone pressing anything;
+        /// turn it off if you would rather pay only for what you ask to hear.
+        /// </para>
+        /// </summary>
+        public bool VoiceSpeakWhenClosed { get; set; } = true;
+
+        /// <summary>
+        /// When true, the small acted parts between *asterisks* are read aloud too, as narration
+        /// between the spoken words. On by default (Anton, 2026.08.15): a reply whose whole answer is
+        /// *turns away without a word* was simply silent before, and half of what a soul does never
+        /// reached the ear at all.
+        /// <para>
+        /// The asterisks themselves are never spoken, and a gesture that ends on a word is closed
+        /// with a stop so it does not run into the sentence after it. Turn it off and the voice reads
+        /// only what was actually said — the older behaviour, and the right one for anyone who finds
+        /// stage directions in a voice jarring.
+        /// </para>
+        /// </summary>
+        public bool VoiceSpeakActedParts { get; set; } = true;
+
+        /// <summary>
+        /// When true, anyone you have not cast by hand is given a voice of their own people and
+        /// their own sex — so a Battanian woman sounds Battanian without you casting five hundred
+        /// souls one at a time.
+        /// <para>
+        /// The choice is worked out from their own name and never written down, so it is the same
+        /// voice every session and survives every reload. Anything you cast yourself always wins,
+        /// and so does a voice you hand to all women or all men. Turn this off and only your own
+        /// castings speak.
+        /// </para>
+        /// </summary>
+        public bool VoiceAutoCast { get; set; } = true;
+
+        /// <summary>Where the speech engine's own files live (the folder holding qwen3_tts.dll and
+        /// its companions). Leave empty and it is looked for in the usual places — this is only for
+        /// an unusual install, or to point at a second copy.</summary>
+        public string VoiceEnginePath { get; set; } = string.Empty;
+
+        /// <summary>The folder of speech models (.gguf). Empty = found on its own.</summary>
+        public string VoiceModelDir { get; set; } = string.Empty;
+
+        /// <summary>Which speech model speaks, by file name. Empty = whichever talker model is
+        /// there. A bigger model sounds better and takes longer; both are honest choices.</summary>
+        public string VoiceModelName { get; set; } = string.Empty;
+
+        /// <summary>How much disk the spoken lines may keep, in megabytes. Every line is made once
+        /// and then simply played, so the cache is what makes a voice instant the second time; when
+        /// it grows past this the oldest lines are quietly swept, whole replies at a time. 0 keeps
+        /// everything for ever, which on a large disk is a perfectly good answer.</summary>
+        public int VoiceCacheBudgetMb { get; set; } = 2048;
+
+        /// <summary>The FMOD event a spoken line is handed to. Leave it alone unless the voices are
+        /// silent or oddly quiet. This is the game's OWN event for audio it did not ship (verified
+        /// 2026.08.15 in its event table, beside "event:/Extra/external" and
+        /// "event:/Extra/voicechat"), so it already rides the game's own routing and volume. If it
+        /// ever needs moving, "event:/Extra/external" is the nearest sibling. Takes hold on the next
+        /// line spoken.</summary>
+        public string VoiceSoundEvent { get; set; } = "event:/Extra/voiceover";
+
+        /// <summary>
+        /// How a spoken reply is made and delivered. Three roads, and which one is best depends on
+        /// how hard the graphics card is already working:
+        /// <list type="bullet">
+        /// <item><c>FullRead</c> (default) - one generation for the whole reply, and not a word is
+        /// heard until all of it exists. The steadiest voice and no gaps ever, at the cost of
+        /// waiting longer before she starts.</item>
+        /// <item><c>Streaming</c> - the same single generation, but each second of it is played the
+        /// moment it is made. She starts speaking in well under a second; if the card is busy
+        /// enough that making the audio falls behind playing it, the reply breaks into gaps.</item>
+        /// <item><c>ByLine</c> - a separate generation per sentence. The oldest road, kept for
+        /// comparison: it starts quickly on a loaded card but the voice audibly changes person at
+        /// every sentence, because each generation rolls its own prosody.</item>
+        /// </list>
+        /// Takes hold on the next line spoken; no restart.
+        /// </summary>
+        public string VoiceDelivery { get; set; } = "Streaming";
+
+        /// <summary>
+        /// The key that stops a voice DEAD, wherever you are — on the map, in a battle, with every
+        /// window shut. It exists because of the one thing this feature can do that nothing else in
+        /// the mod can: a speech model that misses its own ending keeps generating, and what comes
+        /// out is babbling or screeching that will not stop on its own.
+        /// <para>
+        /// There are two rails above this one — every line is given an audio ceiling worked out from
+        /// its own length, and a reading that runs past it is cut off and never kept — so this should
+        /// stay a key nobody has to press. It is here for the day they do.
+        /// </para>
+        /// </summary>
+        public string VoicePanicKey { get; set; } = "Backspace";
+
+        /// <summary>When true, a soul who comes to you unbidden speaks their first words aloud as
+        /// they arrive. ON since 2026.08.15 (Anton's call): being spoken to unprompted is most of
+        /// what makes them feel alive, and it is the moment a voice earns its keep. The known cost
+        /// stands — several souls may reach out within one stretch of map and there is one voice at
+        /// a time, so a second arrival cuts off the first mid-sentence. Backspace silences it, and
+        /// their words keep the play mark beside them either way.</summary>
+        public bool VoiceSpeakReachOuts { get; set; } = true;
+
+        /// <summary>
+        /// A hosted speech service, for the far more common player who has no graphics card to spare
+        /// and no wish to download several gigabytes. Empty = the local engine only.
+        /// <para>
+        /// It cannot clone anybody, which is exactly why it is the stranger's road and the Qwen
+        /// engine is the author's: you pick from a fixed shelf of voices instead of making your own.
+        /// Billed per minute of speech to whichever key you put here, and every line is written down
+        /// in the same cost ledger as everything else.
+        /// </para>
+        /// </summary>
+        public string CloudVoiceApiKey { get; set; } = string.Empty;
+
+        /// <summary>Where the hosted speech service lives. The default is OpenAI's own; any service
+        /// that speaks the same shape works, which is the same courtesy the LLM side extends.</summary>
+        public string CloudVoiceEndpoint { get; set; } = DefaultCloudVoiceEndpoint;
+
+        /// <summary>OpenAI's own speech endpoint — verified against the live documentation
+        /// 2026.08.15, along with the thirteen voice names and the WAV response format.</summary>
+        public const string DefaultCloudVoiceEndpoint = "https://api.openai.com/v1/audio/speech";
+
+        /// <summary>Which hosted model speaks. gpt-4o-mini-tts is the cheapest of them and carries
+        /// all thirteen voices; tts-1 is quicker and older and carries nine.</summary>
+        public string CloudVoiceModel { get; set; } = "gpt-4o-mini-tts";
+
+        /// <summary>What a minute of hosted speech costs, in dollars, for the cost notices. OpenAI's
+        /// own published figure for gpt-4o-mini-tts is $0.015 a minute. We know exactly how many
+        /// seconds came back, so this is measured rather than estimated — edit it if you speak with
+        /// somebody else's service.</summary>
+        public double CloudVoicePricePerMinute { get; set; } = 0.015;
+
+        /// <summary>The once-per-install nudge that the voices exist at all has been shown. Voices
+        /// are off by default and must never become a thing the player has to turn off to be left
+        /// alone — so this is said once, softly, and never again.</summary>
+        public bool VoiceHintShown { get; set; }
+
         /// <summary>The built-in model → context-window table. Longest key contained in the model id
         /// wins, so "gpt-5.1" beats "gpt-5" for gpt-5.1-mini. Users edit/extend the copy in their
         /// config.json; missing built-ins are re-added on load so new defaults reach old configs.</summary>
@@ -920,10 +1177,30 @@ namespace ImmersiveAI
             // looked). A budget too small to finish the memory is not a matter of taste, it is a
             // wound, so it migrates like the prices do — but only where it still holds the exact
             // old default; any hand-set budget is the player's own and stays.
+            // The 4000 below is deliberately NOT re-pointed at the 2000 the default became on
+            // 2026.08.14. This migration is history: it healed a specific wound with the value
+            // chosen at the time, and it only ever fires for a config still sitting on V3. Lowering
+            // a ceiling is taste, and taste is never migrated — the same asymmetry that migrates
+            // prices and leaves model defaults alone.
             if (ConfigVersion < 4)
             {
                 if (MaxMemoryWriteTokens == 1500) MaxMemoryWriteTokens = 4000;
                 ConfigVersion = 4;
+            }
+
+            // V5 (2026.08.15): "FullRead" existed for ONE reason — playing a streamed reply as N
+            // separate sounds left a frame of silence inside every second of speech, and waiting for
+            // the whole reading was the only way to be sure of no seam. That defect is fixed (the
+            // pieces are now poured into one file and handed over by the clock, see VoicePlayback),
+            // and with it gone Full read is strictly worse: same audio, four seconds later.
+            // So it migrates like the memory budget did — a mode that exists only to dodge a defect
+            // is not taste — and ONLY where it still holds the exact old default. Anyone who chose
+            // Full read by hand chose it, and keeps it.
+            if (ConfigVersion < 5)
+            {
+                if (string.Equals(VoiceDelivery, "FullRead", StringComparison.Ordinal))
+                    VoiceDelivery = "Streaming";
+                ConfigVersion = 5;
             }
 
             if (string.IsNullOrWhiteSpace(SystemVoiceName)) SystemVoiceName = "Angel";
@@ -967,6 +1244,12 @@ namespace ImmersiveAI
             // The daily request cap: negative is a typo; 0 stays "no cap".
             if (MaxDailyRequests < 0) MaxDailyRequests = 0;
 
+            // 0 is a real answer here ("do not touch my limiter"); anything else must land inside
+            // what the engine's own limiter accepts, or it is quietly ignored.
+            if (TalkScreenFpsLimit < 0) TalkScreenFpsLimit = 0;
+            else if (TalkScreenFpsLimit > 0 && TalkScreenFpsLimit < 30) TalkScreenFpsLimit = 30;
+            else if (TalkScreenFpsLimit > 360) TalkScreenFpsLimit = 360;
+
             // The hotkeys must name real keys; anything unparseable falls back to the defaults.
             if (string.IsNullOrWhiteSpace(ChatWindowHotkey)) ChatWindowHotkey = "O";
             ChatWindowHotkey = ChatWindowHotkey.Trim();
@@ -982,7 +1265,8 @@ namespace ImmersiveAI
             // new voice; a hand-edited line is honored as it stands.
             if (string.Equals(AtmosphereLine.Trim(), LegacyAtmosphereLine, StringComparison.Ordinal))
                 AtmosphereLine = new ModConfig().AtmosphereLine;
-            if (string.Equals(RoleplayGuidance.Trim(), LegacyRoleplayGuidance, StringComparison.Ordinal))
+            if (string.Equals(RoleplayGuidance.Trim(), LegacyRoleplayGuidance, StringComparison.Ordinal)
+                || string.Equals(RoleplayGuidance.Trim(), PreviousRoleplayGuidance, StringComparison.Ordinal))
                 RoleplayGuidance = new ModConfig().RoleplayGuidance;
 
             // Keep the daily rate non-negative and under one-per-hour, so a fat-fingered value can't have
@@ -1000,8 +1284,10 @@ namespace ImmersiveAI
 
             // The nights. The hour must be an hour; the cooldown must leave a night to be a night,
             // and a day and a half is as far as it is worth stretching one.
+            LoverRansomHagglePercent = Clamp(LoverRansomHagglePercent, 0, 90);
             NightHour = Clamp(NightHour, 0, 23);
-            NightCooldownHours = Clamp(NightCooldownHours, 1, 72);
+            NightDayResetHour = Clamp(NightDayResetHour, 0, 23);
+            NightCooldownHours = Clamp(NightCooldownHours, 1, 72);   // retired; kept sane, read by nothing
             if (ConceptionChanceMultiplier < 0 || double.IsNaN(ConceptionChanceMultiplier)) ConceptionChanceMultiplier = 0;
             if (ConceptionChanceMultiplier > 10) ConceptionChanceMultiplier = 10;
             ConceptionRevealDelayDays = Clamp(ConceptionRevealDelayDays, 0, 30);
@@ -1016,6 +1302,44 @@ namespace ImmersiveAI
             if (string.IsNullOrWhiteSpace(NightWindowHotkey)) NightWindowHotkey = "H";
             NightWindowHotkey = NightWindowHotkey.Trim();
 
+            // The voices. The three paths are the player's own words and are honored as written —
+            // only trimmed, because a pasted path drags a space along often enough to matter, and a
+            // trailing separator would turn into an escaped quote on the host's command line.
+            VoiceEnginePath = (VoiceEnginePath ?? string.Empty).Trim();
+            VoiceModelDir = (VoiceModelDir ?? string.Empty).Trim();
+            VoiceModelName = (VoiceModelName ?? string.Empty).Trim();
+
+            // The cache budget: 0 stays a legitimate "keep everything", a negative is a typo, and
+            // the ceiling is only there so a stray keystroke cannot promise a terabyte.
+            // The delivery road knows exactly three spellings; a typo or an old hand edit becomes
+            // the default rather than silently meaning nothing.
+            var road = (VoiceDelivery ?? string.Empty).Trim();
+            if (!road.Equals("FullRead", StringComparison.OrdinalIgnoreCase)
+                && !road.Equals("Streaming", StringComparison.OrdinalIgnoreCase)
+                && !road.Equals("ByLine", StringComparison.OrdinalIgnoreCase))
+                VoiceDelivery = "Streaming";
+            else
+                VoiceDelivery = road.Equals("FullRead", StringComparison.OrdinalIgnoreCase) ? "FullRead"
+                              : road.Equals("Streaming", StringComparison.OrdinalIgnoreCase) ? "Streaming"
+                              : "ByLine";
+
+            if (VoiceCacheBudgetMb < 0) VoiceCacheBudgetMb = 0;
+            if (VoiceCacheBudgetMb > 200000) VoiceCacheBudgetMb = 200000;
+
+            // The panic key: an unreadable name would leave the player with no way to stop a voice
+            // at all, which is the one failure this feature must not have.
+            if (string.IsNullOrWhiteSpace(VoicePanicKey)) VoicePanicKey = "Backspace";
+            VoicePanicKey = VoicePanicKey.Trim();
+
+            // The hosted road: the key is the player's own words, and the endpoint is completed the
+            // same way every other pasted base URL in this file is.
+            CloudVoiceApiKey = (CloudVoiceApiKey ?? string.Empty).Trim();
+            CloudVoiceModel = (CloudVoiceModel ?? string.Empty).Trim();
+            if (CloudVoiceModel.Length == 0) CloudVoiceModel = "gpt-4o-mini-tts";
+            CloudVoiceEndpoint = (CloudVoiceEndpoint ?? string.Empty).Trim();
+            if (CloudVoiceEndpoint.Length == 0) CloudVoiceEndpoint = DefaultCloudVoiceEndpoint;
+            if (CloudVoicePricePerMinute < 0) CloudVoicePricePerMinute = 0;
+
             // The model table: never null, and every built-in entry present (so new defaults reach
             // configs written before them); user edits to existing keys are honored as-is.
             if (ModelContextWindows == null) ModelContextWindows = DefaultModelContextWindows();
@@ -1029,7 +1353,7 @@ namespace ImmersiveAI
 
             // Memory-writing budget: never below the spoken budget (that would make reflection the
             // narrowest voice she has), never runaway.
-            if (MaxMemoryWriteTokens <= 0) MaxMemoryWriteTokens = 4000;
+            if (MaxMemoryWriteTokens <= 0) MaxMemoryWriteTokens = 2000;
             if (MaxMemoryWriteTokens < MaxTokens) MaxMemoryWriteTokens = MaxTokens;
             if (MaxMemoryWriteTokens > 8000) MaxMemoryWriteTokens = 8000;
 

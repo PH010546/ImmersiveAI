@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Text;
 using TaleWorlds.CampaignSystem;
@@ -130,7 +130,7 @@ namespace ImmersiveAI.Personas
         public static string Build(Hero speaker, Hero partner, ModConfig? config = null)
             => Build(speaker, partner, config, Moment.Meeting);
 
-        /// <summary>The situation for a reach-out ponder: the partner is NEARBY, about their own
+        /// <summary>The situation for a reach-out: the partner is NEARBY, about their own
         /// affairs — not coming to the speaker, not being written to from afar. Before this shape the
         /// reach-out flow borrowed the meeting one, whose closing "And now X comes to me" contradicted
         /// the very question of whether to go to them (found 2026.07.26).</summary>
@@ -308,7 +308,7 @@ namespace ImmersiveAI.Personas
             return sb.ToString().TrimEnd();
         }
 
-        // The moment itself: the arrival (or the far-away thought), the person, and where my heart
+        // The moment itself: the one I am with (or the far-away thought), and where my heart
         // stands — the closing breath of the sheet, placed right after my memory of them.
         private static string BuildMeeting(Hero speaker, Hero partner, Moment moment)
         {
@@ -323,10 +323,13 @@ namespace ImmersiveAI.Personas
                 sb.AppendLine($"My thoughts turn to {them}{appos} who is far from me now — the road between us is long.");
             else if (moment == Moment.Near)
                 sb.AppendLine($"{them}{appos} is nearby, about their own affairs — nothing has yet passed between us at this moment.");
-            else if (partner == Hero.MainHero)
-                sb.AppendLine($"And now {them}{appos} comes to me.");
             else
-                sb.AppendLine($"And now {them}{appos} comes to speak with me.");
+                // Stative, not an event (2026.08.14, Anton's ask). The sheet is rebuilt for EVERY
+                // reply, so an arrival line ("And now X comes to me") was still announcing a fresh
+                // arrival on the twentieth turn of one conversation — and a mind told someone has
+                // just walked in answers with greeting-energy again and again. A heading instead:
+                // what follows is simply what I know of the one I am speaking with.
+                sb.AppendLine($"About {them}{appos}:");
 
             // Man and wife stand closer than any courtesy: the marriage bed, the children, and the
             // grand designs of the house are all one conversation between them.
@@ -581,7 +584,18 @@ namespace ImmersiveAI.Personas
             {
                 if (h.IsPrisoner) { sentences.Add("I am held captive, a prisoner."); return; }
                 var party = h.PartyBelongedTo;
-                if (party == null) return;
+                if (party == null)
+                {
+                    // A gang leader's command is his ALLEY, not a warband, and it never becomes a
+                    // party on the map — so reading only PartyBelongedTo left his sheet silent about
+                    // the men who answer to him, and asked whether he leaves the fighting to them he
+                    // said he had none (Akadan the Widow-maker, Odokh, 2026.08.16). One sentence
+                    // only: the muster itself lives in the recall of one's company, as for any
+                    // other captain.
+                    var street = StreetFollowing(h);
+                    if (street.Length > 0) sentences.Add(street);
+                    return;
+                }
                 var leader = party.LeaderHero;
                 int men = 0;
                 Try(() => men = party.MemberRoster?.TotalManCount ?? 0);
@@ -939,6 +953,42 @@ namespace ImmersiveAI.Personas
         {
             if (string.IsNullOrEmpty(word)) return "a";
             return "aeiou".IndexOf(char.ToLowerInvariant(word[0])) >= 0 ? "an" : "a";
+        }
+
+        /// <summary>The one always-on line for a soul whose command is an alley rather than a
+        /// warband. Same two guards as the recall's: the alley model reads <c>Owner.Power</c>
+        /// unchecked, so only ever ask it about an alley this soul truly owns, and the player's own
+        /// alleys are another behaviour's business entirely.</summary>
+        private static string StreetFollowing(Hero h)
+        {
+            try
+            {
+                if (h == null || h == Hero.MainHero) return string.Empty;
+                var alleys = h.OwnedAlleys;
+                if (alleys == null || alleys.Count == 0) return string.Empty;
+
+                int total = 0;
+                var places = new System.Collections.Generic.List<string>();
+                foreach (var alley in alleys)
+                {
+                    if (alley == null || alley.Owner != h) continue;
+                    var where = alley.Name?.ToString();
+                    if (!string.IsNullOrWhiteSpace(where)) places.Add(where);
+                    Try(() =>
+                    {
+                        var roster = Campaign.Current?.Models?.AlleyModel?.GetTroopsOfAIOwnedAlley(alley);
+                        if (roster == null) return;
+                        foreach (var entry in roster.GetTroopRoster())
+                            if (entry.Number > 0) total += entry.Number;
+                    });
+                }
+                if (places.Count == 0) return string.Empty;
+
+                return total > 0
+                    ? $"I keep no warband upon the road, but {JoinAnd(places)} is my ground — some {total} knives hold it for me and answer when I call."
+                    : $"I keep no warband upon the road, but {JoinAnd(places)} is my ground.";
+            }
+            catch { return string.Empty; }
         }
 
         private static string JoinAnd(System.Collections.Generic.List<string> items)

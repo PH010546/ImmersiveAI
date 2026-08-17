@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using ImmersiveAI.UI.ChatWindow;
@@ -135,7 +135,13 @@ namespace ImmersiveAI.UI.NightWindow
         {
             var hero = _selected?.Hero;
             if (hero == null || !_canGo) return;
+            // Close whichever page is showing this button. Since 2026.08.16 that may be the TALK
+            // SCREEN's hearth side rather than this window, and it must go down first for two
+            // reasons: the evening's popups ride a layer above it either way, but the screen also
+            // HOLDS THE WORLD STILL while it is up, and a night that cannot let an hour pass is a
+            // night that never settles. Both closes are no-ops when that screen is not the one open.
             NightWindowManager.Close();
+            TalkScreen.TalkScreenManager.Close();
             ImmersiveChatBehavior.GoToHerFromWindow(hero);
         }
 
@@ -342,7 +348,9 @@ namespace ImmersiveAI.UI.NightWindow
                 // souls, not to a help page nobody finishes. Every figure below is read from the
                 // live config, so a page that says 24 hours is telling the truth about YOUR game.
                 var key = string.IsNullOrWhiteSpace(_config?.NightWindowHotkey) ? "H" : _config!.NightWindowHotkey.Trim();
-                int hours = _config?.NightCooldownHours ?? 24;
+                int ready = Core.Nights.NightClock.NormalizeHour(
+                    _config?.NightDayResetHour ?? Core.Nights.NightClock.DefaultResetHour);
+                int asked = Math.Max(0, Math.Min(23, _config?.NightHour ?? 21));
                 int reveal = _config?.ConceptionRevealDelayDays ?? 7;
                 int kept = _config?.MaxNightsRemembered ?? 14;
                 int tenth = (int)Math.Round(Math.Max(0.0, Math.Min(1.0, _config?.CarefulNightChanceFactor ?? 0.1)) * 100);
@@ -369,8 +377,8 @@ namespace ImmersiveAI.UI.NightWindow
                     + "Cost: the company breaks camp disorganized next morning. A free night costs nothing and is not written.\n\n"
 
                     + "TIMING\n"
-                    + $"One night per {hours} hours. Any visit resets the clock.\n"
-                    + "Auto waits for the evening, so the whole day before it is yours to use.\n\n"
+                    + $"One night an evening. The house is ready again at {ready}:00 each day, whatever hour you kept the night before.\n"
+                    + $"You are asked at {asked}:00, and Auto waits for that hour too — so the whole day before it is yours to use.\n\n"
 
                     + "A CHILD\n"
                     + $"Not announced at once — she learns about {reveal} days later, and may then come or write to tell you.\n"

@@ -1,4 +1,4 @@
-using MCM.Abstractions.Attributes;
+﻿using MCM.Abstractions.Attributes;
 using MCM.Abstractions.Attributes.v2;
 using MCM.Abstractions.Base.Global;
 using MCM.Common;
@@ -147,6 +147,11 @@ namespace ImmersiveAI.Mcm
         [SettingPropertyGroup("Windows & Hotkeys", GroupOrder = 1)]
         public Dropdown<string> LetterWindowHotkey { get; set; } = HotkeyChoices("Y");
 
+        [SettingPropertyInteger("Talk screen frame limit (0 = leave mine)", 0, 360, "0 fps", Order = 3, RequireRestart = false,
+            HintText = "Frames per second while the talk screen is open. Nothing moves there but one person breathing, so the machine need not work as it does in a battle. Your own frame limit is borrowed while the screen is up and handed straight back when it closes. 0 leaves it untouched; anything else is held to the 30-360 the game allows.")]
+        [SettingPropertyGroup("Windows & Hotkeys", GroupOrder = 1)]
+        public int TalkScreenFpsLimit { get; set; } = 60;
+
         [SettingPropertyBool("Window of the hearth", Order = 4, RequireRestart = false,
             HintText = "A small window of your own marriage: your wives, where each of them stands and how her season runs, when the next night is yours to spend, and the fortnight of nights each of them keeps.")]
         [SettingPropertyGroup("Windows & Hotkeys", GroupOrder = 1)]
@@ -198,6 +203,11 @@ namespace ImmersiveAI.Mcm
         // per NPC", both retired with the lists they capped. The gap is deliberate — the remaining
         // orders keep their places rather than shuffling under a returning player's eye.
 
+        [SettingPropertyBool("Notice the gear you give them", Order = 7, RequireRestart = false,
+            HintText = "Someone riding with you notices when you change their gear - what you put into their hands, what you took, and what each piece is worth - written into their own memory when you close the inventory. Nothing is written for gear the game changes itself, nor for a session you cancel.")]
+        [SettingPropertyGroup("Life of the NPCs", GroupOrder = 2)]
+        public bool EnableGearNotes { get; set; } = true;
+
         [SettingPropertyBool("Hiring by handshake", Order = 8, RequireRestart = false,
             HintText = "An unhired wanderer you talk terms with may strike the hiring bargain in the conversation itself. Nothing is settled by talk alone: a popup names the exact price, and only your click pays and hires — the same rules as the tavern dialog (enough gold, room in your company).")]
         [SettingPropertyGroup("Life of the NPCs", GroupOrder = 2)]
@@ -207,6 +217,62 @@ namespace ImmersiveAI.Mcm
             HintText = "How far words can move a hiring price from the game's own reckoning, either way. 0 = no haggling (the reckoned price or nothing); 30 = up to 30% above or below. A hard rule the mod enforces, whatever is said. The daily wage is never negotiable.")]
         [SettingPropertyGroup("Life of the NPCs", GroupOrder = 2)]
         public int ConversationHiringHagglePercent { get; set; } = 30;
+
+        // ---------------------------- Voices ----------------------------
+
+        [SettingPropertyBool("Speak their words aloud", Order = 0, RequireRestart = false,
+            HintText = "Characters read their replies out loud in a voice you choose, made on your own machine. Needs Qwen-TTS Studio installed with a model downloaded, and a graphics card with a few GB to spare. Off costs nothing and changes nothing else.")]
+        [SettingPropertyGroup("Voices", GroupOrder = 3)]
+        public bool EnableVoice { get; set; }
+
+        [SettingPropertyBool("Speak without being asked", Order = 1, RequireRestart = false,
+            HintText = "A reply speaks itself the moment it appears. Off, nothing is ever spoken until you ask for it.")]
+        [SettingPropertyGroup("Voices", GroupOrder = 3)]
+        public bool VoiceAutoSpeak { get; set; } = true;
+
+        [SettingPropertyBool("Speak answers you are not watching", Order = 6, RequireRestart = false,
+            HintText = "An answer speaks itself even with the screen shut, so you can send a line and listen while you ride. Needs 'Speak without being asked'. There is one voice at a time, so two answers landing together means the second cuts off the first - Backspace silences it. With a hosted voice this is billed without you pressing anything.")]
+        [SettingPropertyGroup("Voices", GroupOrder = 3)]
+        public bool VoiceSpeakWhenClosed { get; set; } = true;
+
+        [SettingPropertyBool("Read the acted parts aloud too", Order = 5, RequireRestart = false,
+            HintText = "The small acted parts a character writes between asterisks - *sets down her cup* - are read aloud as narration between the spoken words. The asterisks themselves are never spoken. Off, only what was actually said is read, and a reply that answers with a gesture alone stays silent.")]
+        [SettingPropertyGroup("Voices", GroupOrder = 3)]
+        public bool VoiceSpeakActedParts { get; set; } = true;
+
+        [SettingPropertyBool("Give everyone a voice of their own people", Order = 2, RequireRestart = false,
+            HintText = "Anyone you have not cast yourself is given a voice of their own culture and sex, so a Battanian woman sounds Battanian without you casting every soul by hand. It is worked out from their own name, so it never changes between sessions. Anything you cast yourself, and any voice given to all women or all men, still wins. Off: only your own castings speak.")]
+        [SettingPropertyGroup("Voices", GroupOrder = 3)]
+        public bool VoiceAutoCast { get; set; } = true;
+
+        [SettingPropertyDropdown("How a reply is spoken", Order = 3, RequireRestart = false,
+            HintText = "Streaming (recommended): one reading, played as it is made - the first words come in well under a second and the pieces are joined so there is no seam. Full read: waits for the whole reading before a word is heard; slower to start, and now no steadier. By line: a separate reading per sentence - the voice changes character at every sentence, kept only for comparison.")]
+        [SettingPropertyGroup("Voices", GroupOrder = 3)]
+        public Dropdown<string> VoiceDelivery { get; set; } = new Dropdown<string>(McmChoiceLists.VoiceDeliveryModes, 1);
+
+        // The three castings. The lists are built AT BIND TIME from the player's own voices folder,
+        // which is why they start as a lone placeholder here — and why the bridge always re-selects
+        // them by the voice's ID rather than trusting the index MCM stored last session. A shelf can
+        // gain and lose voices between sessions; an index cannot survive that, and an id can.
+        [SettingPropertyDropdown("Your own voice", Order = 4, RequireRestart = false,
+            HintText = "Reads your own lines back to you in a voice you pick. None by default: hearing your own character speak your words is divisive, and it doubles what each exchange costs to make.")]
+        [SettingPropertyGroup("Voices", GroupOrder = 3)]
+        public Dropdown<string> VoiceForMe { get; set; } = new Dropdown<string>(McmChoiceLists.NoVoice, 0);
+
+        [SettingPropertyBool("Speak reach-outs aloud", Order = 7, RequireRestart = false,
+            HintText = "When someone comes to you unbidden, their first words are spoken as they arrive - which is the moment a voice earns its keep. Note that several people may approach within a short ride and there is one voice at a time, so a second arrival cuts off the first; Backspace silences it, and their words always carry a play mark you can press instead.")]
+        [SettingPropertyGroup("Voices", GroupOrder = 3)]
+        public bool VoiceSpeakReachOuts { get; set; } = true;
+
+        [SettingPropertyDropdown("Stop a voice with", Order = 8, RequireRestart = false,
+            HintText = "The key that silences a voice at once, anywhere - on the map, in a battle, with every window shut. Speech models very occasionally lose their ending and ramble; two safeguards already cut that short, and this is the one you can reach yourself.")]
+        [SettingPropertyGroup("Voices", GroupOrder = 3)]
+        public Dropdown<string> VoicePanicKey { get; set; } = new Dropdown<string>(McmChoiceLists.PanicKeys, 0);
+
+        [SettingPropertyText("Hosted voices: API key", Order = 9, RequireRestart = false,
+            HintText = "A key for a hosted speech service (OpenAI's, by default) - the road for a machine that cannot run a speech engine. Nothing is downloaded and no voice can be cloned; you pick from a fixed shelf, billed by the minute and shown in the same cost line as everything else. Leave empty to use only voices made on this machine.")]
+        [SettingPropertyGroup("Voices", GroupOrder = 3)]
+        public string CloudVoiceApiKey { get; set; } = string.Empty;
 
         [SettingPropertyDropdown("Starting personality (the director's spark)", Order = 11, RequireRestart = false,
             HintText = "At a character's first interaction, one small AI call writes them a private starting truth (1-3 sentences - a wound, a habit, a vanity) into their editable prompt file, grown from their real story, traits and your world prompt. 'Ask first' shows a popup per new face; Off leaves souls to begin plain.")]
@@ -267,10 +333,10 @@ namespace ImmersiveAI.Mcm
         [SettingPropertyGroup("Life of the NPCs", GroupOrder = 2)]
         public bool NightsPreventChild { get; set; }
 
-        [SettingPropertyInteger("Hours between nights", 1, 72, "0 hours", Order = 21, RequireRestart = false,
-            HintText = "How long must pass before another night can be spent. A man cannot be in two beds in one evening; this is also what greys the choice out with the hours still to go.")]
+        [SettingPropertyInteger("Hour the house is ready again", 0, 23, "0:00", Order = 21, RequireRestart = false,
+            HintText = "One night an evening, and this is the hour it comes round again - the same hour every day, whatever time you kept the night before. Set it hours before the question above, so the stretch between is yours to go of your own accord; the evening then simply finds it already spent.")]
         [SettingPropertyGroup("Life of the NPCs", GroupOrder = 2)]
-        public int NightCooldownHours { get; set; } = 24;
+        public int NightDayResetHour { get; set; } = Core.Nights.NightClock.DefaultResetHour;
 
         [SettingPropertyInteger("Days before she knows of the child", 0, 30, "0 days", Order = 22, RequireRestart = false,
             HintText = "A child begun is not a child known. Until this many days pass the world is told nothing either - so the game's own announcement no longer lands the same evening like a receipt. The birth waits the same days with it.")]
@@ -282,10 +348,41 @@ namespace ImmersiveAI.Mcm
         [SettingPropertyGroup("Life of the NPCs", GroupOrder = 2)]
         public bool ShowConceptionOdds { get; set; } = true;
 
+        [SettingPropertyBool("Ask what you have in mind", Order = 25, RequireRestart = false,
+            HintText = "Before a night you have laid something out for, you are asked in your own words whether you have anything in mind for it - a place, an hour, something you mean to say or to do. What you write shapes the evening as far as a man can shape one; what she makes of it stays hers. Leave it empty and the night finds its own way. Never asked for a night that costs nothing, since nothing is written of those.")]
+        [SettingPropertyGroup("Life of the NPCs", GroupOrder = 2)]
+        public bool AskWhatYouHaveInMind { get; set; } = true;
+
         [SettingPropertyBool("A paid night costs you the morning", Order = 24, RequireRestart = false,
             HintText = "A night you laid something out for leaves the company slow to break camp - disorganized, as after a fight. That is what the coin and the hours actually cost, and she is told of the lingering, since it was for her. Ordinary nights cost the road nothing.")]
         [SettingPropertyGroup("Life of the NPCs", GroupOrder = 2)]
         public bool PaidNightsDisorganizeParty { get; set; } = true;
+
+        // ── The lover's road ────────────────────────────────────────────────────────
+        // The courtship road's other branch: what a heart can offer when it will never be a wedding.
+
+        [SettingPropertyBool("The lover's road", Order = 26, RequireRestart = false,
+            HintText = "A courtship may fork. A woman whose heart has gone deeper than any marriage asks may offer herself to you as your lover - no vow, no wedding, no house that takes her name, and no word of the two of you said before anyone. Your own marriage is no bar to it. Nothing binds until you seal it yourself, and a woman of another house stays under her father's roof until he is paid for losing her. Off: the road runs only where it always did, to a wedding or nowhere.")]
+        [SettingPropertyGroup("Life of the NPCs", GroupOrder = 2)]
+        public bool EnableLoversRoad { get; set; } = true;
+
+        [SettingPropertyInteger("Haggling over what her house is owed", 0, 90, "0%", Order = 27, RequireRestart = false,
+            HintText = "How far the head of a house will argue about what it costs to take a woman of his blood out of it, above or below his own reckoning of her worth. 0% means the figure does not move at all. He is being paid, not asked - the gold settles what is owed to his house and nothing else besides.")]
+        [SettingPropertyGroup("Life of the NPCs", GroupOrder = 2)]
+        public int LoverRansomHagglePercent { get; set; } = 30;
+
+        // ── The doors ───────────────────────────────────────────────────────────────
+        // A wife's or a lover's door can be shut, and the closure always carries her own words.
+
+        [SettingPropertyBool("Doors can be shut", Order = 28, RequireRestart = false,
+            HintText = "A wife's or a lover's door can be shut against you - and when it is, she has written down why, in her own words, and what would answer it. Nothing opens it but her own judgment: no coin, no apology button, no timer. You talk to her, and if what you say truly reaches her she lays her own reason to rest, or she does not. Off: the only refusal is the one the nights always had, her body's own season.")]
+        [SettingPropertyGroup("Life of the NPCs", GroupOrder = 2)]
+        public bool EnableClosedDoors { get; set; } = true;
+
+        [SettingPropertyBool("Allow \"go to her anyway\"", Order = 29, RequireRestart = false,
+            HintText = "A shut door still offers one quiet option at dusk: to go to her anyway. She does not refuse you; she performs, and the weight of it is exactly that. Nothing is written of such a night, no gift is offered and no name is kept - and each one makes the road back longer, in her own written account of it. Off and the option does not exist in your game at all. Never offered during her season, whatever this is set to.")]
+        [SettingPropertyGroup("Life of the NPCs", GroupOrder = 2)]
+        public bool AllowDutyNights { get; set; } = true;
 
         [SettingPropertyBool("Memories rewind with your saves", Order = 10, RequireRestart = false,
             HintText = "When on, loading a save also rewinds the NPCs' memories to that moment — so reloading to before an NPC's angry turn truly un-remembers it (the game already rewinds the relation number itself). Off: a reload leaves them remembering what, on that timeline, never happened.")]

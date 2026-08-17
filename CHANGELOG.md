@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 The player-facing history of Immersive AI — short lines written for players, no file names, no
 internals (the developer's full record is `TASKS_DONE.md`).
@@ -15,14 +15,113 @@ tiers the section feeds (see `tools/WORKSHOP-UPLOAD.md`):
 
 ## [Unreleased]
 
-**DRAFT Nexus changelog — re-check the 255-character cap before shipping:**
+## v3.0.0 — 2026.08.16
+
+The big one: one screen for everyone you know, voices you can hear, every child written down,
+and life after the wedding. Much of this is freshly built — this is a hobby project, one pair of
+hands — so if something misbehaves, please say so in the comments and it will be mended.
+
+**The Nexus changelog (255 max — copy this verbatim):**
 
 ```
-* New: every child you father is written down - the hour, in her own voice
-* Choose the feast: bread and salt, or a whole town rejoicing
-* Pay more for a night, get a longer, franker account
-* Invited weddings call both families - no strangers
+* One screen for everyone you know, drawn there alive
+* Hear them speak - local or hosted voices
+* Every child written down: the hour, the feast, the name
+* Lovers, shut doors, and nights that count
+* Big update, much is fresh - report what breaks!
 ```
+<!-- 248 characters, measured 2026.08.16 (Nexus counts characters, not bytes: this block is pure
+     ASCII so the two agree). Seven characters of room. Re-measure after ANY edit here. -->
+
+
+### Hearing them speak
+- New: a small ▶ beside every line in the talk screen reads it aloud — their replies, their letters, and their own quiet thoughts alike. Press it again on anything ever said between you; a line heard once is instant ever after.
+- New: a **Voices** page in the talk screen, there for everyone: pick a voice, hear it before you commit, give it to the person before you or to yourself. It says plainly what is missing when something is.
+- New: the mod brings a handful of voices with it, laid on your shelf the first time you run it, so turning voices on never shows you an empty list. They are yours from that moment: rename them, recast them, throw them away — one you delete stays deleted, and one you have edited is never written over by an update.
+- New: one button brings over every voice you made in Qwen-TTS Studio. Press it again after making another and only the new ones arrive.
+- New: anyone you have not cast by hand is given a voice of **their own people and their own sex** — a Battanian woman sounds Battanian, without you casting five hundred souls one at a time. The choice is made from their own name, so it is the same voice every session and survives every reload. Anything you cast yourself always wins. You are given one too, so your own lines can be read back.
+- Only voices made on your own machine are handed out this way. A hosted voice is billed by the minute, so one is never given to anybody automatically — put one on someone yourself and it speaks for them happily.
+- Changed: the "all women" and "all men" voice slots are gone, in the talk screen and in the settings. They sat above the voices given by people, so one press left everybody sharing a voice with no way to undo it, and with per-people casting they are simply not needed — a shelf holding one woman's voice already gives it to every woman. Any that were set are emptied once, and voices you cast on individual people are untouched.
+- New: the Voices page now says where each voice sits — `female/battania/Gwen` — and lists them grouped that way, which is how you find one on a shelf of a hundred.
+- New: the Voices page is now in folders — one per people for the voices made on your machine, one for the speech model's own, one for the hosted ones. Click a folder to fold it shut. The folder of whoever you are talking to opens by itself.
+- New: the Voices page shows only voices of the right sex for the person in front of you. "Every voice" lifts that when you want to give someone a voice from outside the usual choice.
+- New: the voice someone speaks with is now written beside their name in the talk screen, so you can tell who they sound like without opening anything — and it says *why* they have it: chosen for them, or given for their own people.
+- Turning voices on without the speech engine installed now tells you what to actually do — which free program to install, where to get it, and which model to download — instead of naming a file you have never heard of. If the engine is there and only a model is missing, it says that instead.
+- New: **Backspace** silences a voice instantly, wherever you are — on the map, in a battle, with every window shut. A **Stop** button also appears in the talk screen whenever anything is speaking.
+- New: voices without a graphics card. Put a key for a hosted speech service in the settings and thirteen voices appear beside your own — about 1½ cents a minute, shown in the same cost line as everything else. It cannot clone anyone; that is what your own machine is for.
+- New: the speech model's own nine voices show up by themselves if you downloaded the model that carries them, so you can hear something before cloning anything.
+- New: your own lines can be read back to you in a voice you choose. Off by default.
+- New: someone who comes to you unbidden speaks their first words aloud as they arrive. If two arrive close together the second cuts off the first — Backspace silences it, and there is a switch under Voices if you would rather they waited to be asked.
+- Fixed: a spoken reply no longer breaks up. The pieces are now poured together and handed over on the clock instead of a frame late, so a long reply is one unbroken take — and it starts in under half a second, which makes it the right way round for everyone.
+- Fixed: a voice that loses its ending and rambles is now cut off after seconds instead of minutes, and the ruined line is never kept, so it cannot come back the next time you scroll past those words.
+- Changed: every voice on the shelf now says where it comes from — "(Qwen TTS Studio)" for the ones made on your own machine, "(Qwen TTS, built-in)" for the speech model's own, "(OpenAI)" for the hosted ones. Before, only the hosted ones were marked, which read as though the rest came from nowhere.
+- New: the small acted parts — *sets down her cup* — are now read aloud too, as narration between the spoken words, so a reply that answers with a gesture alone is no longer silence. The asterisks themselves are never spoken. There is a switch under Voices if you would rather hear only what was said.
+- New: an answer now speaks itself even with the screen shut, so you can send a line and hear the reply while you ride on. The ping and the unread mark still show you the way back to it. A switch under Voices puts it back the old way.
+
+### What they notice
+- New: someone riding with you now notices when you change their gear — what you put into their hands, what you took, and what each piece is worth. A companion has no other way of knowing whether the mail you just gave her is a courtesy or a fortune; now she does, measured against her own wage when the sum is large. Nothing is said about gear the game changes on its own, nor about a session you cancel, and trying a helmet on and taking it off again is not a change. Switch under "Life of the NPCs".
+
+### Between us
+- Fixed: on the older chat window the "Between us" page told you a child of yours had never been owned before the world and gave you no button to do it. The act now has its door on both windows.
+- Fixed: the "Between us" button did nothing on the hearth side of the talk screen. Her page was lying over it and taking the press, so the button was there to be seen and could not be pressed.
+
+### The hearth
+- New: the hearth (H) is now a stage. The women of your house are listed on the left, the one you turn to stands there ALIVE in her own place — the same picture the game uses for talking on the map — and her page is on the right: her season, the fortnight of nights, your children's cards, the two switches, and the one decision. It is the same screen the talking happens on, turned over; a button in the bar moves between the two.
+
+### The talk screen
+- Fixed: someone you meet in a tavern is now drawn IN the tavern. Everyone inside a town was being shown out in the street, whatever room they were really in.
+- New: inside a town you can move the talk — the town, the tavern, or the keep when it is open to you. One button in the bar, and it goes back to wherever they truly stand when you turn to somebody else.
+
+### What they can see for you
+- Fixed: your scouts can now tell you how many of a band go wounded and whether it drags prisoners — naming captive lords among them — where before they could not report what you can read off the party's own nameplate. The same facts ride into weighing a battle, on both sides, since men too hurt to stand in a line are not men you are fighting.
+
+- Fixed: a gang leader no longer tells you he has nobody at his back. His men hold an alley rather than riding a warband, and the mod was only ever looking for a warband — so a man with a dozen knives answering to him described himself as alone. He now knows his own ground and who holds it, and can count them for you.
+
+### The road journal
+- Fixed: a town stop no longer lists the same goods over and over ("Silver Ore ×6, Cow ×4, Salt ×19…" four times in one breath). The journal was writing an open stop into its file twice, and reading it back appended that stop's goods to themselves — so every save and load while you stood in a town doubled the list again. Journals already swollen this way tidy themselves the next time they are read.
+
+### The nights
+- Fixed: the chance a night quickens was too high, and a gift appeared to buy nothing — the hearth window showed the same figure with and without one. The month's odds were being shared out across her season as though they simply added up, which pushed a good night far past what it should be and a gift past what a chance can even mean, so both were being quietly clipped at the same ceiling. Taking a wife's whole season is still exactly as likely to give a child as the game's own reckoning — that promise is now exact rather than approximate — but any single night now reads honestly, and a gift is worth what it costs again.
+- Changed: the night's clock now keeps the sun instead of counting hours. One night an evening, and the house is ready again at the same hour every afternoon — whatever time you kept the night before. Before, a late night pushed the next one later still, until the evening's question came round while you were not ready yet and the day was simply lost. A night after midnight now belongs to the evening it grew out of rather than to the morning it landed in. The hour is yours to set in the options.
+
+### What they are told about themselves
+- Changed: your own words now have the LAST word. What you write in the world prompt and in a character's own prompt closes their mind instead of sitting in the middle of it, under a line saying plainly that where anything else they remember disagrees, your words stand. Edits there used to lose quietly to a long memory; now they bite.
+- Changed: the "how I speak" part of a character's mind is three short habits instead of a wall of rules. Everything about their gifts — recalling the world, weighing their heart, tending a courtship — now sits with the gift itself, so it reaches them only when they can actually use it. Less telling them who to be leaves more room to be someone.
+- Changed: a character is no longer told "and now so-and-so comes to me" on every single reply — it was announcing a fresh arrival on the twentieth turn of the same conversation, and they kept greeting you again. They are simply told who they are speaking with.
+- Changed: the built-in roleplay guidance lost its "live here and be glad of it" half. Warmly meant, but it was still telling every soul how to be, and they all answered a little more alike for it. If you had left that setting untouched it updates itself; if you wrote your own, yours stands.
+- Changed: the room a character gets for writing their memories now starts at 2,000 words' worth instead of 4,000 — cheaper per exchange, and enough for the deep memory to finish its thought. Your own setting, if you changed it, is untouched.
+
+### One place for everyone you know
+- Fixed: typing a message could throw you out of the conversation and onto the hearth page mid-word. The key that opens the hearth was still listening while you wrote, so an "h" in a sentence turned the whole screen over. It now stays out of the way while the screen is up — the buttons in the bar do the turning, as they always did.
+- Fixed: the key that stops a voice mid-reading no longer fires while you are writing, so deleting a typo just deletes a typo.
+- The world now holds still while the talk screen is open, the way it does in an ordinary conversation, and starts again when you step away.
+- New setting: a frame limit for the talk screen, 60 by default. Nothing moves there but one person breathing, so your machine can rest; set it to 0 to leave your own limit alone (MCM, under Windows & Hotkeys).
+- New: they change how they stand as you talk — a hand on the hip, arms folded, weight shifted — the way they do in a face-to-face conversation. Which poses you see depends on how they feel about you: an old friend stands easy with you, someone who cannot stand you keeps their guard up.
+- New: the chat window and the letter window are ONE screen now — everyone you know in a single list, near or far, with the person you chose standing before you in the middle.
+- New: the same writing box does both. They can hear you? Write and press Enter. They are a kingdom away? The button becomes "Seal and send" and the words ride out as a letter.
+- New: letters read as part of the same story, in their place among the spoken words, wearing a ✉ so you can see which words travelled.
+- New: one letter at a time between you and anyone — while a courier rides in either direction, the seal waits for word. A correspondence, not a shouting match.
+- Changed: "Speak freely with me." on the map now opens that screen on whoever you clicked, instead of running the talk in the old dialog box. Inside a town's own streets the old panel still carries the conversation.
+- Changed: both old keys (O and Y) open the one screen, so nobody's habits break.
+- Changed: someone who has died stays in the list, marked "(gone)" — their letters remain readable forever.
+- Fixed: someone whose band you have ridden right up to on the open map now counts as standing with you — they show as "here", you can simply speak to them, and they can come to you unbidden. Until now only your own party and the town you were standing in counted, so a lord one step away was "too far for words". Anyone marching in your army counts too. You have to be all but touching them, not merely in sight — the range is the game's own "close enough to bump into each other", which is wider at sea where ships are.
+- Changed: the settlement menu now offers one door — "Speak with those you know" — instead of a line for speaking and another for letters, since both opened the same screen.
+- Changed: someone who comes to you unbidden now opens the talk screen when you answer their knock, where you can see them, rather than the old dialog box.
+- Changed: scrolling up past the oldest word now shows what they may reach for while answering FIRST, above their own mind, so it is found instead of buried under thousands of words.
+- Fixed: clicking a party on the map, speaking freely, and closing the screen no longer left you standing in a stand-off with them.
+
+### Coming to you
+- New: the one you are wed to comes to you far more readily than anyone else — three times as often as a companion who shares the same amount of story with you, and she will cross a room to begin even if the two of you have never spoken.
+- New: your own household — companions, kin, the lords of your clan — are somewhat likelier to come to you than the nobles and townsfolk around them. A nudge, not a landslide.
+- New: your spouse now heads the talk screen's list wherever in Calradia she is, and is who the screen opens on.
+- Fixed: people almost never came to you any more, and it cost you to be told so. Whenever someone noticed you nearby they first weighed, in private, whether they had anything worth saying — a whole turn of thought, usually answered "no". Nobody is asked now: when the moment falls to someone they simply cross the room and speak, about whatever the day has actually put in front of them. Half the price, twice the company.
+- Changed: **the cold now runs one way.** Someone who has come to dislike you used to seek you out exactly as eagerly as someone who loves you — so wronging your wife made her cross the room *more*. Ill feeling now quiets a person instead: fewer visits, fewer letters, down to a rare word at the very bottom. Never total silence, and never at the cost of the morning after — a fresh hurt still brings her to you while it is fresh, and the cold begins after that.
+- Note: because nobody is talked out of it any more, people really will come as often as your **socialness** setting promises. If your camp feels busy, turn it down a notch — that dial finally means what it says.
+
+### The post
+- Changed: someone far away no longer sits and wonders whether to write to you. When the post falls to them they write, and the letter you get is the same letter — one fewer thought paid for on the way to it.
+- Fixed: a courier now always outrides you. You could beat your own letter to its reader, and then stand in front of them with it still on the road between you — which also barred you from writing again.
+- Fixed: a letter still travelling to someone you have since ridden up to is handed over on the spot, whenever the two of you meet.
 
 ### The birth chronicle
 - New: every child born to you is written down in two parts — the hour of it, set down in the mother's own voice and belonging to the two of you, and the feast that welcomed the child, which everyone who stood at it remembers ever after.
@@ -33,7 +132,48 @@ tiers the section feeds (see `tools/WORKSHOP-UPLOAD.md`):
 - New: your children live in the hearth window (H) under their mother's name — the hour first, then the feast, kept there for good.
 - A child who does not live is recorded and grieved, never feasted and never written up.
 
+### Doors, and what it costs to walk through one
+- New: a wife's or a lover's door can be **shut against you** — and when it is, she has written down why, in her own words, and what would answer it. You can read both.
+- Nothing opens it but her own judgment. There is no apology button, no price, and no timer: you talk to her, and if what you say truly reaches her she lays her own reason to rest — or she does not.
+- She can also strike one out that proved to be nothing, reword one that changed shape, or take back up one she thought was answered and was not.
+- Her body's own season is still her season, and is never treated as a grievance.
+- Sometimes there is nothing written at all and the door is simply shut. She will tell you that plainly rather than invent a reason, because she is not going to manufacture one to explain herself.
+- New: when a door is shut against you, the evening offers one more thing — **"Go to her anyway."** She will not refuse you. She will not welcome you either.
+- Nothing is ever written of such a night: no gift, no name, no account. There is nothing to tell, and that is the telling. She keeps one flat line about it and nothing else.
+- Each one makes the way back longer, in her own words, whether or not you ever speak to her again. It is never offered during her season, and you can turn the whole option out of your game in the settings.
+- New: when she learns something — that you were elsewhere, that another woman is yours now — it is the loudest thing in her for about a day and a half, and she will cross a room or write a letter to say something about it. Once. After that comes the quiet, which is worse.
+
+### Children, and whose they are
+- New: a child born to a woman who is not your wife asks you a question the day it comes — **own it before the world with a feast, own it quietly, or say nothing at all.**
+- The child is yours by blood either way; the game's own records never change. What changes is what the world is allowed to say — and in this age, a child a man has not owned is not counted his, whatever the whole town privately knows.
+- A child you have not owned is spoken of only as its mother's. That is what makes owning one late so heavy: it is not a name, it is a taking-in, in front of everyone who spent years not saying it.
+- New: **you can still give the name, at any age** — from the "Between us" page of the child's mother.
+- New: every child now keeps its **own memory from the day it is born** — where it was born, who its parents are, and whether anything was said of it. So when it grows up and first speaks to you, it already knows who it is. Nobody briefs it. And the silence is recorded too.
+- A child is never given its mother's own account of the hour. It gets the facts of its day; her voice stays hers.
+- Fixed: **marrying a woman makes her child yours before the world too.** A child born before the wedding is no longer spoken of as one born outside it — by her, by your other women, or by anyone reading your house. If you once said nothing of that child on purpose, that still stands, and giving the name still means something.
+- Fixed: **"No feast" now means no feast.** Declining a party for a child of your own wife could quietly record that you had refused to acknowledge it — and tell her so. The refusal is only ever written down when you were actually asked the question.
+- Fixed: a mother whose child you welcomed with a hall full of people remembers the hall. She was being told you had said it quietly in a corridor, whatever you had spent.
+
+### One door, many rooms
+- Changed: the little button under someone's name no longer changes its name. It says **"Between us"**, always, and the page behind it holds everything that is between you: what stands unanswered, where you stand, the road, your wedding day, your children, and what is still owed to one of them.
+- Fixed: the evening's "where will you sleep tonight?" notice now wears her face, like every other notice in the mod. It was the only one carrying nobody at all, so the circle drew empty.
+- New: the town, castle and village menus now tell you the keys — "Speak with those you know (O)" — and carry a second door to your own hearth beside it.
+
+### The lover's road
+- New: a courtship can fork. A woman whose heart has gone deeper than any marriage asks may offer herself to you as your lover — no vow, no wedding, no house that takes her name, and no word of the two of you said before anyone. She offers it by her own hand; nothing at all is settled until you take it.
+- Your own marriage is no bar to it. A married man's acquaintance can still warm to him and come to love him — what a standing marriage now closes is the road toward a *second* wedding, not the road of a heart.
+- It asks more than a marriage does, on purpose. A wife has vows, a settlement and the world's approval holding her in place; a lover has nothing whatever but what she feels, so she has to feel a great deal more before she will say it.
+- New: a woman of another house stays under her father's roof until he is paid for losing her. He names what her going costs — anchored to the worth of the gear she stands up in, and haggled like any other bargain — and taking the gold does not reconcile him to it in the slightest.
+- A lover rides with you without being hired, and without being counted against the company you may keep. She comes for love, not wages.
+- New: what she is to you is written plainly in her own mind — that she is not your wife, that the world has a name for a woman in that place, and that what she makes of that is her own affair. Two women in the same position will not tell you the same thing about it.
+- New: everyone in the world now knows what the world holds about all this — that a woman weds, that to be first and only is honor and to be second or hidden is shame, and that a man's children are the ones he owns before everyone. It is stated as what is *held*, never as what anyone feels; where each soul stands toward it is theirs, and some of them will surprise you.
+- A lover shares the evenings, the leaks and the hearth with your wives now — including the chance of a child, which is reckoned honestly and works.
+- Both the offer and the price can travel by letter, and are put to you when the courier arrives.
+- Words alone never make it so. If she reaches for it and the world says no, you are told what she reached for and why nothing came of it — no more talk of something that quietly never happened.
+- She can end it, and so can you. What was between you is remembered afterward either way; the gold that bought her out of her house does not come back, and she does not go home.
+
 ### The nights
+- New: before a night you have laid something out for, you are asked in your own words whether you have anything in mind for it — a place, an hour, something you mean to say or to do — and the account of it is shaped by what you wrote. What she makes of it is still hers, and if what you wanted could not be had where you were, that is part of the night too. Leave the box empty and the evening finds its own way.
 - Changed: the more you lay out for a night with your wife, the longer and more particular the account she keeps of it — and every account now tells the whole of it, not only the evening before.
 - Changed: the account reaches for different images each time, so a long marriage stops reading like one evening written over and over.
 - Changed: her roll of nights keeps the SPECIAL ones whole however old they are — the night a child began on no longer scrolls away in four days — and a run of ordinary nights gathers into one line instead of ten.
@@ -45,6 +185,10 @@ tiers the section feeds (see `tools/WORKSHOP-UPLOAD.md`):
 
 ### Weddings
 - Changed: a wedding with invitations is now a guest list, and a guest list excludes. Couriers ride to BOTH families and to the people you truly know, and to nobody else — no more halls full of townsfolk you have never spoken to.
+- Fixed: a courtship that cannot go forward yet now says so **in the log**, naming what was reached for and why nothing was sealed. Before, the refusal was told only to them — so if they went on to describe a wedding anyway, nothing on your screen said the world had not moved, and you could believe you were married when you were not.
+- Changed: they now know plainly that no words make a marriage — no vows between the two of you, no temple, no ceremony described to each other. Until they lay the day down and you seal it, they will say so warmly instead of playing along.
+- Fixed: opening your wedding day again draws the two of you at the age you were on the day, not the age you are now.
+- New: your wedding day and each child's day now say how old you both were, and how long ago it was — so a soul telling the story years later tells it about the people you were then.
 
 ### What they remember, and what it costs you
 - Changed: the long wedding and birth accounts fade in an NPC's mind as any memory does — whole while fresh, then their opening, then just the day itself. They can still tell you the whole of it if you ask.

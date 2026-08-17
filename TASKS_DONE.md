@@ -196,3 +196,648 @@
 - [x] THE BIRTH CHRONICLE — the wedding's own shape turned on the next day of a life (Anton, 2026.08.10: "истории, подобни на тази на сватбата, за раждане на детенце, пак организиране за празненство за раждането, подобно на това за сватбата на тиери, може да се преизползва много от същата логика"). Core `Births\` (`BirthRecord`/`BirthLedger` JSON-per-birth in `_births` + `births.txt`, `BirthTiers`, `BirthText` — the two prompts, the permanent marks, the accounts; unit-tested) + the `ImmersiveChatBehavior.Births.cs` partial + `Tools\CradleTool` (`recall_birth`). TWO PARTS, and here they are split IN TIME as well as register: THE HOUR is written the moment the child comes, in the mother's own first person, in the register of Rachel and Hannah and the stable — "her hour came upon her", the women about her, FEAR NOT, the first cry, and she called his name — under the nights' own two-halves rule wearing different clothes (nothing clinical, no anatomy, no physician's word; and equally nothing coy, "do not skip past the pain and the fear to arrive at a clean, tidy joy"). THE FEAST is the wedding day's register, third person, and is written only if one is bought — which may be DAYS later, because a father away at war is asked when he finally rides in (`AwaitingFeastOffer`, a 30-day window, one question an hour, and a "no" is remembered so he is not asked again every hour he stands beside her). THE PRIVACY LINE RUNS BETWEEN PARENTS AND WITNESSES, in code and not in prose: the hour reaches the mother's memory alone, the father gets the FACT and his own presence or absence but NEVER her first person (planting her private "I" in his memory would be exactly the small lie this mod exists not to tell), and `CradleTool` hands him the hour framed as what she told him of it afterwards. A child who did not live is never sent to the chronicler, never feasted, never announced gladly — one mark, written by hand. THE HOOK is `CampaignEvents.OnGivenBirthEvent` and three decompiled facts made it safe: the subscribe method is `AddNonSerializedListener` (there IS no `AddListener` on IMbEvent in this version — the compile error the research was run to prevent); vanilla rolls a 1.5% DEATH IN LABOUR for the mother immediately AFTER the event, so every fact is captured synchronously exactly as the wedding's clan-change taught; and this version never asks the player to name the newborn (byte-scanned, "Naming Newborn" is dead content), so our feast popup collides with nothing. Reuse where Anton asked for it: witness gathering moved WHOLE into the shared `ImmersiveChatBehavior.Celebrations.cs` + Core `Celebrations\GuestRules`, and the birth ladder is the wedding's own ladder denar for denar — while paying about a third of its renown, because a child is joy and not an alliance, and children are far easier to come by than weddings. 25 new tests, 450 green. (2026.08.11 00.02.00)
 - [x] THE INVITED WEDDING BECAME A GUEST LIST (Anton, 2026.08.10, reading his own chronicle back: "за тиера от 1 000 нека не идват непознати и нобели, нека са познатите ни, дори да не са с нас, викнати, без непознати" — his hall in Baltakhand held five townsfolk he had never spoken a word to). At the thousand-denar rung couriers now ride to the player's OWN HOUSE and to every soul with a real shared story, however far — and to nobody else: no notables of the place, no lords come to be seen. The chronicler is told so in the same breath ("NO ONE ELSE stood in that hall"), because a hall it is not told about is a hall it furnishes itself. THE FLAG DELIBERATELY DOES NOT CLIMB: `GuestRules.LocalsPresent` runs true → false → true up the ladder, and that is the shape of the thing — a day nobody was called to is witnessed by whoever happened to stand there, but the moment couriers go out the day has a guest list, and a guest list is a thing that EXCLUDES; higher still the country itself is called and the place fills again. The move also fixed an ordering flaw the old code carried: the invited guests are now taken BEFORE the townsfolk, so a crowded market day can never eat the cap with millers before the friend who rode a week to be there is reached. (2026.08.11 00.04.00)
 - [x] THE BIRTH CHRONICLE, ROUND TWO — the live probe, the image deck, both houses, and 34 review findings (2026.08.10 night, Anton: "направи още един хубав оглед и бъг хънт... ако трябва викай гпт луна колкото трябва"). A SCRATCHPAD PROBE HARNESS was built first and it earned itself immediately: a net8.0 console referencing Core, calling the REAL prompt builders (a hand-written copy of a prompt validates nothing) with Anton's OWN Sibylla read out of his runtime folder — her custom_instructions, her rolling summary, her last ten spoken turns — against gpt-5.6-luna on his own key. Four findings no amount of reading would have produced: (1) the 1000-denar night came back at 1582 characters, which the old flat 1600-char tamer would have clipped by a hair — the fix shipped hours earlier was load-bearing after all; (2) THE NAMED IMAGE CAME BACK VERBATIM in two nights running (the bird startled in the brush) DESPITE the sentence beside it saying "not wording to lift" — so the fixed images were replaced by `NightText.ImageDeck` + `DrawImages(seed)`, ~18 of Scripture's own images with three DEALT per night, stably from the night's id (each card its own hash: the first cut walked a fixed stride from one hashed start, giving 18 possible hands instead of 800, and the unit test caught it the minute it existed); (3) all three probed jewel nights put a PURSE OF COINS on the table, traced to the tier note's "and it was laid down before anything else" — the price is a MEASURE of the gift now, never a prop in the room; (4) at three sentences the whole act arrived as one run-on chain of clauses, so the prompt now asks for whole sentences and says to say less rather than pack more. Also live-validated: the birth's hour ("Водата в мен се разля като счупен съд… тесните врати на живота" — told, and told through an image, exactly the ask), and the feast, which repeated the guest-list rule back unprompted ("нямаше чужди хора, нито господари, дошли да се покажат"). ANTON'S TWO CALLS: the biblical METHOD is now stated outright in both the nights and the birth — "the particular thing is always TOLD, and always told AS AN IMAGE" — and BOTH FAMILIES are called at the invited rung ("нека дойде и нейния род"), which needed `OtherHouseOf`: vanilla's `GetClanAfterMarriage` returns the PLAYER'S clan whenever either party is the player, so a wife's `Clan` reads as ours ever after and passing it named our own house twice — her house is resolved from BLOOD (father, mother, siblings) at a cradle and from her current clan at a wedding, where the hook still fires before the clan change. TWO ADVERSARIAL REVIEW ROUNDS ran over the whole thing (26 + 23 agents): 19 confirmed findings in the first, 15 in the second, all fixed. The worst of the first: the mother's private hour was being handed to the PUBLIC feast prompt with a polite request to keep it secret, while that answer is copied verbatim into up to sixty witnesses' memories. The worst of the second was MY OWN FIX FROM THE FIRST — the `if (anyOpen)` gate meant a player holding under 100 denars declined a world-pausing feast popup that then re-fired EVERY IN-GAME HOUR for thirty days; an all-greyed question is now never shown at all and a decline always settles. Also fixed round two: the facts are scoped per prompt in Core (`AppendFacts(forFeast)`) so the hour never sees a guest list and the feast never sees her self-text or deep memory (the feast prompt shrank 6704→5170 characters, a saving on every one); a day seals on BOTH sides being settled rather than on a written hour, so a feast actually paid for could no longer vanish from births.txt; a feast kept days later is written in the place it was kept, not the town the mother left; a mother lost in labour no longer holds her child's day unsealed for a month; the sweep gives the father his mark too; a failed disk write can no longer strand the in-flight guard for a session; and the children were moved to the FOOT of the hearth window because that panel is bottom-anchored and Anton wanted to SEE them on opening. 456 tests green. (2026.08.11 03.40.00)
+
+- [x] THE VOICEOVER, THE REST OF IT (the whole roadmap in one night, 2026.08.15)
+    Waves 1-5 of docs/voiceover-roadmap.md, built in one pass and none of it playtested. What
+    shipped: a play mark on EVERY thread row (replies, letters, inner beats, wedding/birth/night
+    accounts) via ChatMessageVM.WithVoice + TalkScreenVM.Voiced, deriving the audio from the words
+    with VoiceCacheKey rather than holding state on a row the thread rebuilds; the panic stop in
+    three layers (Backspace anywhere from SubModule's tick, a Stop button that only exists while
+    something speaks, and a per-line audio ceiling); the voice panel in the talk-screen bar for
+    EVERY player (pick / hear / give to them, all women, all men, me / import / open the folder /
+    turn it on) joined into the Escape chain in all three places; Studio import behind a button;
+    the player's own voice; male/female/player defaults in MCM stored and matched BY ID with the
+    index treated as disposable; reach-outs able to speak at their presentation point (off by
+    default); and the hosted rung.
+
+    THE FOUR THINGS MEASURED AGAINST THE REAL ENGINE, all new and none of them documented anywhere:
+    (1) ONE AUDIO TOKEN IS EXACTLY 1920 SAMPLES = 80 ms. A ceiling of 256 tokens returns 20.48 s to
+        the sample, twice, from two texts. So the engine's own 4096 default is 327.68 s.
+    (2) THE DERAIL IS REAL AND IT HAPPENED HERE: 202 characters of Bulgarian became 327.68 s of
+        audio — exactly 4096 tokens — costing 139 s of GPU. The same text read cleanly a minute
+        later, so it is a dice roll, not a property of the text.
+    (3) A NOTE THAT WAS WRONG: "MaxAudioTokens does nothing" came from passing 64 on the command
+        line, which HostOptions silently rewrites to 4096 (its floor is 256). The field is exact.
+        The per-request ceiling has its own floor of 40 and is what the game now uses.
+    (4) STREAMING: first audio in 427 ms, and the engine generates ~2.5x faster than the audio
+        plays, so it never starves. Steady-state throughput ~3.0x realtime; the FIRST call after a
+        model load is slower (2.26x), so never measure once.
+
+    THE SEAM, FIXED THREE WAYS AT ONCE (VoicePlayback, rewritten): the waiting pieces are POURED
+    into one file (Core WavFiles.Join, unit-tested) so most seams stop existing; the next sound is
+    BUILT while the current one plays, so the handover is one Play() call; and the handover is
+    scheduled BY THE CLOCK from the WAV's own header rather than by polling IsPlaying(), which only
+    answers a frame late — which was the seam. The pouring happens on a background task and only
+    the sound event is made on the game thread, so no file copying lands in a frame. With that
+    done, Streaming is strictly better than Full read and becomes the default (ConfigVersion V5
+    migrates only a config still holding the exact old default).
+
+    THE DERAIL GUARD, PROVED LIVE (guard-hit / guard-whole): Core VoiceBudget works a token ceiling
+    out of the line's own length (13 chars/second, 1.5 s of grace, 1.8x) and the host honours it to
+    the sample; the host also counts what it is actually handed and pulls the cord itself if that
+    ceiling ever stops meaning what it means; a generation that runs to its WHOLE ceiling is treated
+    as a runaway on that fact alone, because a sentence that ends by itself practically never lands
+    on the rail to the token; a WHOLE reply discards and retries once before keeping anything; and a
+    derailed clip is never sealed into the cache. Verified: the cap truncated at exactly 8.00 s, the
+    retry fired, and the flag reached the game.
+
+    THE QUIETNESS, SETTLED FROM THE GAME'S OWN FILES: event:/Extra/voiceover IS a real game event
+    (Modules\Native\ModuleData\sound_event_data.gen.xml, guid {2a2e4e13-d391-41bd-bf9e-91891d2c63f4},
+    beside Extra/external and Extra/voicechat — the family the engine keeps for audio it did not
+    ship). The earlier note saying the name was ours and FMOD merely tolerated it was wrong, so the
+    first playtest's quietness had ONE cause and not two: the engine's own 10-20 dB low output,
+    which the host already normalises.
+
+    THE HOSTED RUNG, LIVE-TESTED on Anton's own key with his blessing (three calls, ~.003):
+    OpenAI /v1/audio/speech, gpt-4o-mini-tts, thirteen voices, and — the happy part — WAV comes back
+    as 24 kHz 16-bit MONO, byte-for-byte the shape the local engine makes, so the cache, the joiner
+    and the whole playback chain are shared with no special cases. English 7.6 s in 2.6 s; Bulgarian
+    escaped as \uXXXX works; a bad key is a 401 turned into plain words. Billed BY THE MINUTE OF
+    AUDIO ACTUALLY RECEIVED (read from the WAV header), so the cost notice is measured, not guessed.
+    Hosted voices are never PREWARMED — a line made ahead for a play mark nobody presses would be
+    money spent on silence — while local ones stay eager.
+
+    THE MODEL WRINKLE, HANDLED IN CODE AS WELL AS IN WORDS: the nine built-in speakers live on
+    qwen-talker-1.7b-customvoice and NOT on the base model that clones, so a player who followed the
+    setup page and made no voice would find an empty shelf. VoicePreset gained SpeakerName and the
+    shelf offers those nine when the loaded model's name says customvoice.
+
+    OFF BY DEFAULT AND FINDABLE (Anton's ask): EnableVoice stays false, the Voices button is in the
+    bar for everybody, and ONE soft notice after a reply says the words can also be heard — written
+    to config.json the same instant so it can never repeat.
+
+    Also: the real Qwen-TTS Studio link is no longer a TODO (github.com/Danmoreng/qwen-tts-studio,
+    confirmed by matching Anton's own qwen-tts-studio-0.2.9-windows-cuda-bundled.zip against the
+    releases page), docs/voiceover-setup.md is finished and de-drafted, and the engine notes carry
+    every measurement above. 680 Core tests green (VoiceBudget and WavFiles are new and covered).
+    2026.08.15 04.10.00
+
+--------------------------------------------------------------------------------------------------
+### Voices that ship with the mod — a shelf that is never empty
+    A fresh install turned voices on and found nothing to speak with unless the player had already
+    cloned something in Studio (or fetched the customvoice model, or pasted a hosted key). So the
+    mod now CARRIES voices: module\Voices\ is tracked in git, deploy.ps1 and package.ps1 both copy
+    it to Modules\<id>\Voices, and Core VoiceSeeds.Seed lays each one onto the player's own shelf
+    once, called from VoiceService.EnsureShelf.
+
+    THE WHOLE DESIGN IS TWO RULES ABOUT NOT OVERRULING THE PLAYER, and both are unit-tested (13 new
+    tests, 696 green). A name already on their shelf is never written over, so an edited or
+    re-cloned voice survives every update. And a voice already offered is never offered again,
+    because deleting one has to MEAN something — that is what Voices\_seeded.json is for, and it is
+    why a name is ledgered the moment it is OFFERED rather than the moment it is copied (the
+    already-there case must ledger too, or it is re-examined forever). A voice added to a LATER
+    version still arrives on its own, since the ledger is by name.
+
+    The female\ / male\ subfolders are for our own tidiness, not a schema: an unrecognised group
+    name seeds its voices with no gender hint, and a voice folder may sit loose at the top. The
+    group's gender only FILLS what the voice does not state — a voice.json naming its own gender
+    keeps it whichever folder it was filed under. A broken shipped voice is skipped with a log line
+    and, deliberately NOT ledgered, arrives on the next start once mended.
+
+    The folder ships EMPTY of voices for now (README.txt only, and it is where the constraint is
+    written where it will be read): a voice folder carries the clip it was cloned from, so shipping
+    one hands every player a copy of that. CC0/public-domain source audio only — kyutai/tts-voices.
+    Anton is training the first set from free wavs in another session.
+    2026.08.15 09.56.00
+
+
+--------------------------------------------------------------------------------------------------
+### The packager refuses to ship a voice we may not ship
+    module\Voices\ travels with the mod and a voice folder carries the EMBEDDING ITSELF, so the
+    likeness constraint that had been an agreement since 2026.08.14 acquired a live way to be
+    violated by accident the moment shipped voices existed. package.ps1 now carries a $neverShip
+    list and throws rather than packaging - matching the folder name AND the name/id inside
+    voice.json, so a renamed folder cannot slip past. deploy.ps1 deliberately does NOT check: the
+    local install is exactly where a development clone belongs.
+
+    Verified both directions on Anton's own test voices (Sibylla = Alba, max/"Achilles" = Pitt):
+    refuses with them present, packages clean with them moved out, folders restored afterwards.
+
+    Also settled while probing the two real folders: THE FOLDER NAMES THE VOICE, not the Id inside
+    voice.json. Studio exports carry their own preset ids, so male\max\ would have arrived on the
+    shelf as "achilles" - and the ledger that remembers a deleted voice would have been keyed to a
+    name nobody chose. The player-facing Name is untouched. Pinned by a test built from that case.
+    2026.08.15 10.04.26
+
+
+---
+
+## Six playtest fixes: the map neighbour, the buried tools, the knock, the stand-off, the post, the double door
+
+Anton's playtest list, all six in one pass (2026.08.15).
+
+1. **"When I'm close to a party and press O I don't see the guy near me."** The root cause was
+   older than the talk screen: `IsCoLocated` knew exactly TWO roads — riding in the player's own
+   party, or standing in the same `Settlement` — and no distance branch at all. On the open map
+   `playerSettlement == null` short-circuited to false, so a lord whose band you had ridden right
+   up to was "away across the map": greyed out of the list, answerable only by courier, and never
+   able to knock. Added a third road, `IsWithinSpeakingDistance`: their own band, neither end
+   inside walls, within `SpeakingDistance` (5 map units — the mod's own "close at hand" band from
+   FieldCraft.DistanceWords, about an hour's ride), plus a free pass for anyone marching in the
+   same army whatever the spacing that frame. A soul inside SOME OTHER settlement is deliberately
+   still out of reach however near its walls stand — that is what the settlement branch is for —
+   while a party camped outside the gates of the town you are in has no settlement of its own and
+   is simply close by. One edit, ~20 call sites: the talk screen, reach-outs, the nights, the
+   births, the courtships all agree at once. `NearbyHeroesForChat` gained two detail lines for the
+   new case ("marches in your army", "close at hand, with their own band") because `Place()` would
+   only have answered "here in the road".
+
+2. **The tool list moved to the very top of the scrollback.** It sat between the sheet and the
+   conversation, which buried it: the sheet runs to thousands of words, so scrolling up hit an
+   unbroken wall of prose and nobody reached the hands. Order is now tools, then sheet, then the
+   talk.
+
+3. **A knock now opens the talk screen, not the vanilla panel.** `UsesFaceToFaceInitiations` is
+   `OpenInitiationsFaceToFace && !TalkUI.UsesTalkScreen`. The setting was written when the
+   alternative was a small widget over the map and the panel was the richer of the two; the screen
+   is where the person is actually DRAWN now. Deliberately gated rather than migrated in
+   config.json — it is the right answer again the moment the screen bows out.
+
+4. **The stand-off after closing the screen.** Clicking a band on the map opens a `PlayerEncounter`
+   and the conversation runs inside it; every vanilla parting sets `LeaveEncounter`, ours only
+   closed the window, so the encounter sat in Wait and raised its menu the moment the map was live
+   again — the screen had merely been covering it. `PartFromMapEncounter` sets the flag, but NOT
+   while at war, NOT once a MapEvent exists, and NOT from inside walls: there it would be a free
+   escape from a fight the player rode into, and the stand-off menu is the honest state.
+
+5. **The post.** Two halves of one law — a courier must never be slower than the player.
+   `UnitsPerDay` 150 → 300 (a column makes 100-140, light cavalry ~190) and `MinDays` 0.25 → 0.1,
+   so he can no longer be outrun; and `HandOverLettersWhoseEndsHaveMet` pulls a letter's arrival
+   forward to now whenever its other end is co-located, in both directions. That second half is
+   what actually fixes Anton's case, because the talk screen HOLDS THE WORLD STILL — the hourly
+   tick cannot fire while it is up — so `TalkUI` knocks on it at every opening as well. Until the
+   letter lands the bond counts as having a courier out and cannot be written to, which is the
+   "bugs out the chat" he saw. Test added: the courier beats 190 units/day over every road worth
+   riding.
+
+6. **One door in the settlement menu.** "Speak with those near you" and "Send a letter by courier"
+   both raised the same screen. Under the talk screen there is now a single
+   "Speak with those you know"; the old pair still shows when the classic windows are in use
+   (`UseClassicChatWindow`, or the screen having bowed out this session), where they really are two
+   different windows. Conditions, not registration, so the session fallback flips it live.
+
+    2026.08.15 14.32.10
+
+---
+
+## The speaking range was ten times too far — take the game's number, not a nice-sounding one
+
+Follow-up to the six-fix pass the same day (2026.08.15). Anton's screenshot: his party and a 109-man
+band with a clear gap of daylight between them on screen, and the mod already counted them as standing
+together. "I want them to become available only when we are really close."
+
+The 5 map units came from `FieldCraft.DistanceWords`, where anything under 5 is narrated as "close at
+hand". That band exists to DESCRIBE a distance to a person in a sentence; it was never a measurement,
+and using it as one was a category error.
+
+The engine already owned the honest number:
+`EncounterModel.NeededMaximumLandDistanceForEncounteringMobileParty` = **0.5** (DefaultEncounterModel),
+`NeededMaximumNavalDistanceForEncounteringMobileParty` = **1.5** (NavalDLCEncounterModel; the base model
+answers 0), `MaximumAllowedLandDistanceForEncounteringMobilePartyInArmy` = 1.5. That is the radius at
+which two parties BUMP INTO each other — the game's own definition of touching. So the guess was 10× the
+land radius.
+
+`SpeakingDistance()` now reads the live model and returns that radius × 2 (hailing is a little further
+than colliding), branching on `IsCurrentlyAtSea` exactly as the engine's own callers do, floored at 1 so
+a missing or zero-valued model never means "nobody is ever near". It follows the sea, and it follows any
+mod that reshapes the encounter model.
+
+    2026.08.15 15.58.42
+
+---
+
+## The reach-out ponder: the verb was the dial, and it had been turned all the way up
+
+Anton, 2026.08.15: "before they were just saying hi how are you, and now they always pass because the
+prompt reads do you want to discuss something — they always pass and just waste tokens."
+
+Both halves of that sentence are the same dial at its two ends. The line asked "is there something I
+want to DISCUSS with them just now?", raised on 2026.07.26 precisely to kill courtesy visits (the
+steward asking how you feel, the quartermaster's "troops are good, how are you today"). It worked far
+too well: *discuss* asks for a MATTER, an item of business, and almost nobody has one on a given hour —
+so the ponder came back NO every time and the whole feature became a tax paid in tokens for something
+that never happened.
+
+Anton's own proposal was the right one, and better than the alternative he offered beside it ("ONLY IF
+YOU HAVE SOMETHING REAL TO DISCUSS", which is the same bar with a louder voice): **tell / ask**. They
+are plain speech acts, so they still demand real content — nobody can tell another person nothing —
+while a remark, a question, or a thing noticed on the road all clear them. No list of worthy topics was
+added; that was settled on 2026.07.27 and stays settled.
+
+TWO PLACES, NOT ONE — the second is the easy one to miss. `ReachOutPonderNote` is RECORDED, so every
+future ponder reads a stack of the soul's own past reckonings before answering, and it said they had
+weighed whether they had "TRUE CAUSE" to go. Softening only the live line would have left the memory
+re-arguing the old bar back in their own voice, once per remembered hour. Both moved together; old
+recorded notes keep their original words forever, as all beats do.
+
+Deliberately NOT re-raised as a guard against courtesy visits: the actual cause of the 2026.07.26 spam
+was a FEEDBACK LOOP (outreach beats raising their own richness/recency), and `OutreachDamping` fixed it
+at the source. The bar was doing that job a second time. If courtesy visits return in volume, damp them
+there. The letter-side desire line ("Do I wish to write?") was left alone — different bar, no complaint.
+
+Test renamed and re-pointed; the "no topic-policing" and YES/NO-not-STAY/GO assertions stand.
+
+    2026.08.15 16.41.05
+
+---
+
+## The two hearths: the wedded one, the household, and everyone else
+
+Anton, 2026.08.15: "increase the chances of the wife to come see you even if no history and maybe 3
+times as likely as a companion with the same richness… make the wife come to the top of the window
+always, and open by default when I hit O, she is the hearth of this mod. Companions are the second
+hearth, so their chances must be bigger than the nobles and the other people, not as dramatically."
+
+`InitiationScorer.SpouseHearthFactor` = 4.5, `CompanionHearthFactor` = 1.5 — a Core test pins
+spouse == 3 × companion, because that ratio is a stated requirement and not a knob free to drift.
+`ImmersiveChatBehavior.HearthRank(Hero)` reads 2 / 1 / 0 and `HearthFactor` maps it.
+
+THREE THINGS WORTH REMEMBERING ABOUT THE SHAPE:
+
+1. **`FamilyBuilder.AreWed`, never a bare `Spouse` check.** Marry Anyone parks living wives in
+   `ExSpouses`, and a second wife is precisely the soul this rank exists for.
+
+2. **It multiplies the WHOLE pull, presence floor included** — that is what makes "even if no history"
+   true, since a soul with zero richness gets `floor * hearth` and never reaches `InitiationScorer.Pull`
+   at all (which returns 0 below richness 1). `StrangerStationFactor` is skipped for rank > 0: you do
+   not hold a queen's rank against your own wife. `OutreachDamping` still bites, because it multiplies
+   toward zero and 4.5 × nothing is nothing — the hearth makes her likelier to come, never able to
+   knock twice in an afternoon.
+
+3. **ONE ranking, TWO masters, deliberately.** The same `HearthRank` sorts the talk screen's list —
+   above `IsHere`, above everything — so she heads it wherever in Calradia she stands, and since
+   `TalkScreenManager.Open` builds a fresh VM every time and the VM selects `_allContacts[0]`, that one
+   sort change also answered "open by default when I hit O". Pinning her to the top while she never
+   knocked would have been the mod saying two different things about the same bond.
+
+FACE-TO-FACE ONLY, and this is a judgement rather than an oversight: the letter roll already floors
+her through `DutyRecencyFloor`/`DutyClosenessFloor` (she is in the player's clan), and stacking 4.5× on
+top of those risked a flood of letters nobody asked for. Flagged to Anton as a one-line extension if he
+wants her writing more too. The odds view carries the factor and names it ("wedded to you (pull ×4.5)")
+so "why is it quiet?" keeps telling the truth.
+
+    2026.08.15 17.26.40
+
+---
+
+## A refused troth that nobody could see, and a day drawn at the age it happened
+
+Two unrelated reports, one evening.
+
+### 1. "I got married via the chat but ingame it doesn't seem to have actually made us married"
+
+Steam, rmanicky (2026.08.10): courted a companion, ground her misgivings down to **2/4**, and she
+"decided to wed my character anyway" — they rode to a city, roleplayed a temple, said vows, and she
+told him they were married. No cutscene. No popup. Nothing in the world.
+
+**The rails worked exactly as designed. That was the problem.** Two standing misgivings means
+`JudgeForward` answers `MisgivingsRemain`, so the step to Ready is refused, so the betrothal can
+never be laid, so no seal popup can ever fire. Every one of those refusals was returned **to her
+alone**, as a tool result. The talk then walked straight around them: she is a language model handed
+a warm scene and a soft "not yet", and she staged the wedding in words.
+
+And the player had **no signal whatsoever**. Every movement of the road leaves a coloured line in the
+log — every step, every misgiving set down or laid to rest, every laid promise. A REFUSAL left none.
+A rail nobody can see is indistinguishable from a broken mod, which is precisely the conclusion he
+reached, and a fair one.
+
+Three parts, none of which weakens the one law (words alone never wed):
+
+- **`CourtshipText.WordsDoNotWed`** — the rail in her own voice, saying plainly that no vows between
+  them, no temple, and no ceremony they describe to each other make a marriage; until she lays the
+  day by her own hand and he seals it by his, they are not wed, she does not say they are, and she
+  does not let the talk drift as though they were. It rides the sheet at **every** stage below Wed
+  (`RoadSection`), a short form rides `tend_courtship`'s own description (a tool's contract belongs
+  beside its schema — the 2026.08.14 rule), and the full one is appended to **every refused forward
+  reach**, because the moment she is told "not yet" is exactly the moment the pretending starts.
+- **`CourtshipText.ForwardRefusalForPlayer(verdict)`** — the same refusal in plain words, for the
+  log. Her side stays numberless (the Sibuga floor lesson, still tested); the player's side is
+  allowed to name the cause, and must, or we are back where we started.
+- **`NotifyRoadRefused`** — frost blue, with the rest of the road's weather, and deliberately NOT
+  gated on `ShowNpcActivity`: this is not "remembering…", it is the only thing standing between
+  "the world refused, and here is why" and a wedding that happens in words and nowhere else. The
+  wedding-target line says it outright: *"Nothing has been sealed; whatever is said now, you are not
+  wed."* Silent for letters, per the courier's seal law.
+
+Worth stating for whoever meets this next: the fix is NOT to loosen the misgivings. The road behaved.
+The gap was that a refusal was a private conversation between the mod and the model.
+
+### 2. "if I remember it when im 50 i dont see two old ppl merrying"
+
+Anton, same evening. Opening the wedding keepsake replays the game's own wedding scene, and that
+scene builds its people from the LIVE heroes — so a wedding replayed twenty years on showed two
+twenty-years-older faces at their own altar.
+
+Vanilla had already solved this for itself and we borrow the exact move (decompile-verified):
+`HeirComingOfAgeSceneNotificationItem` draws one child at six and again at fourteen by handing
+`CreateNotificationCharacterFromHero` an overridden `BodyProperties` whose `DynamicBodyProperties`
+carries the age wanted, over the hero's own `StaticBodyProperties`. So `WeddingSceneReplay` now
+overrides `GetSceneNotificationCharacters`, takes whatever the base built, and **replaces slots 0 and
+1** — vanilla's own order is groom, bride, monk, six audience. `SceneNotificationCharacter` is a
+readonly struct with public fields, so the equipment, colours and flags vanilla computed (the bride's
+culture wedding dress among them) ride across untouched. Never reimplement the method; the audience
+is left alone on purpose, since it is whoever is alive and friendly TODAY and has no "then" to be
+drawn at.
+
+Beside it, the same day told in words:
+
+- `WeddingRecord.SpouseAge`/`PlayerAge` and `BirthRecord.MotherAge`/`FatherAge`, captured at the
+  hooks. The chronicler was already given the bride's age and the mother's — and **never** the
+  groom's or the father's, which is fixed here too.
+- `WeddingText.TheirYearsThatDay` / `BirthText.TheirYearsThatDay`: how old they were on the day, how
+  long ago it is, and for a birth how old the child **would be** now ("would", never "is" — the
+  ledger knows what was born, not who still lives). Folded into both `FullAccount`s and into the
+  player's own keepsake page.
+- The line is a **statement, never an instruction** ("they were younger then than they are now").
+  The account is fixed prose, but every sheet around it when it is recalled is today's, and that is
+  the whole reason a fifty-year-old's wedding was being retold about fifty-year-olds.
+- Old records carry no ages and simply say nothing; the replayed SCENE still gets them right, because
+  `AgeOnThatDay` falls back to the calendar — what they are now, less the years since. Nothing to
+  migrate. Core keeps no calendar, so `CalradiaYears.Since` (Module) hands it a plain number.
+
+Births have **no scene replay yet** — vanilla ships `NewBornSceneNotificationItem`, so it is a small
+job whenever it is wanted.
+
+    2026.08.15 22.05.00
+
+## The two known-broken pieces of the after-the-wedding batch
+
+Both were found by the adversarial review pass of 2026.08.15 and left flagged-but-unfixed when that
+run died on a session limit. Both are of the same family: a hand a woman reaches for that could not
+have moved anything.
+
+**`weigh_what_stands`'s revise could only rewrite a thing to itself.** The resolver called
+`DoorReasons.Revise(list, matter, matter, opens)` — the same field passed as both *which one I mean*
+and *the new wording* — so a model sending the new text matched nothing, and one sending the old
+text rewrote the line to itself and was told "I have reworded it". The silent-success half is the
+bad one: this system's whole promise is that what she decided is what is written down.
+
+- The tool gained **its own `reworded` field**, named for what it holds per the standing law rather
+  than folded into `note` the way the misgivings' older tool folds it — but `ParseReworded` falls
+  back to `note` anyway, since the two tools ride the same souls and `note` means nothing on a
+  revise otherwise.
+- The resolver runs the same **narrow swap guard** a settle does (`HandsCameSwapped`, standingOnly
+  false so a settled reason may be reworded too): the new wording is what a model has most to say,
+  so it lands in the first field going, which is exactly how the misgivings' settle failed live.
+- Core's `Revise` now **refuses a revise that would change nothing** — the misgivings' own revise has
+  never let a blanking through, and "I have reworded it" over an untouched line is the same lie in a
+  politer coat. Refusing out loud also lets the tool loop correct itself, which doing nothing did not.
+
+**The morning after never reached the post.** `InitiationScorer.WoundSpike` was read only in
+`CoLocatedPull`, so a wounded woman who was away — and away is the commoner case, since the wife is
+in the town with the house while he is wherever he was — never wrote about it, though the design
+record and the changelog pill both say "she comes to you in the morning, or writes if apart".
+
+- The letter roll applies the same floor over the damped pull, for the same documented reason
+  (multiplying a near-zero pull leaves a near-zero pull). The group-total law is untouched:
+  `WriteRateFactor` still halves the post's whole rate and a louder pull only pushes `UnionPull`
+  nearer 1.
+- It reads the wound **before** the story-depth gate. A woman wed through the game's own barter and
+  never yet spoken with has no story to fill pages — and she is precisely who this is for.
+- The same floor was missing from `CoLocatedPull`'s own richness-0 early return
+  (`docs/review-findings-2026-08-15.md:267`, the same bug wearing the other coat), which skipped the
+  spike for exactly the soul `WoundSpikeAtOnce`'s own comment names: "the woman who most needs to
+  say something is very often the one who has been talked to least". Fixed with it.
+- The spike is still spent exactly once. The letter ponder records `Considered` and the write
+  records `Reached`, and both clear the stamp — so a ponder that answers no does not leave her hot
+  for another thirty-six hours of hourly re-picks.
+
+No changelog pills: both make an existing `[Unreleased]` line true rather than changing anything a
+player has ever seen, and a "Fixed:" note about a version that never shipped is the ghost the
+release ritual warns about.
+
+    2026.08.16 00.00.00
+
+- [x] **THE ROLL IS THE MIKE — THE PONDER AND THE LETTER-DESIRE RETIRED** (Anton, 2026.08.16: "let's
+  move out of the questions 'do you want to speak with X — he let the moment pass'; we now have
+  enough events that the NPCs might discuss and comment on, so let us stop wasting prompts on asking
+  them and just move to giving them the mike, when they get the roll").
+
+  Both self-initiated acts opened with a full-sheet call answered yes or no, and only a yes ever
+  reached the player: `ReachOutPonderLine` ("Is there anything I want to tell them, or to ask them?
+  NO — or YES: the something") and `WriteLetterDesireLine` ("Do I wish, of my own will, to write
+  now?"). Both are gone, with `InitiationParser.WantsToGo`, the whole `reason` plumbing
+  (`ReasonSentence`/`ReasonClause`, `PendingNotice.Reason`, `_currentApproachReason`, four parameter
+  lists) and `PassOnInitiation`'s "…considered reaching out to you, but let the moment pass" notice.
+  **Halves the cost of every reach-out and every spontaneous letter.**
+
+  WHY IT WAS RIGHT, and it is the tuning history that says so: the verb in that question was set at
+  both extremes over three weeks (2026.07.26 "discuss" to stop courtesy visits → 2026.08.15
+  "tell/ask" because *discuss* wants a MATTER and nobody has one on a given hour). What both moves
+  proved is that the answer is decided by the SHEET and not by our wording — and the sheet now
+  carries battles, the road journal, births, weddings, the nights, the line since we were last
+  alone, tidings and rumours. Paying a whole prompt to be told "no" was buying silence at the price
+  of speech.
+
+  WHAT CARRIES THE BAR NOW: the premise moved into the delivery lines — `FirstWordLine` /
+  `ApproachLine` open "there is something I want to tell them, or to ask them", still with NO list
+  of what would count (the 2026.07.27 rule: a list makes every soul answer the same). The letter's
+  premise (the long road, the courier standing ready) moved INTO `ComposeLetterLine`, deliberately
+  after its opening marker fragment so recorded beats stay recognized.
+
+  WHAT TEMPERS FREQUENCY: the roll and `OutreachDamping`, never a question — damping is where the
+  anti-spam load has belonged since 2026.07.26, when a feedback loop turned out to be the real
+  cause. NOTE FOR THE PLAYTEST: the NO-rate was silently multiplying the socialness dial down, so
+  `DailyInitiationRate` finally means what it says and camps will feel busier at the same setting.
+
+  RAILS KEPT: recorded ponder beats keep their words forever (`ReachOutPonderNote` + `IsPonderBeat`
+  still fold reckoning and resolution into one narration line in both windows); the repetition brake
+  is now the delivery beat itself, which holds what was really SAID rather than a summary of what
+  was meant; and silence survives as a fact rather than a question — a blank first word now records
+  nothing, toasts nothing and knocks on nothing, so a stumbling backend can never walk up to the
+  player and say "...". The letter a PLAYER wrote is untouched on purpose: answering one is a reply,
+  not an outreach, and letting it lie unanswered stays a real choice (`AnswerLetterDesireLine` +
+  `WantsToReachOut`, now that parser's only caller).
+
+  Tests 798 green (the WantsToGo suite deleted, the ponder-line test replaced by one pinning the
+  mike's premise, `ApproachLine`/`ComposeLetterLine` pinned to carry it, ponder-beat recognition
+  kept as a legacy test). CHANGELOG: the 2026.08.15 "they now ask whether…" pill REPLACED rather
+  than contradicted (an unshipped section must not announce a feature retired inside the same
+  cycle), plus a note about the socialness dial and one post pill. CLAUDE.md, prompt-text-inventory
+  and the NpcMemory doc updated. NOT playtested. (2026.08.16 04.30.00)
+
+- [x] **THE COLD RUNS ONE WAY** (Anton, 2026.08.16: "right now abs(relation) gets as an increasing
+  factor, I want to make it proportional… if a player gets in bad relation with his wife, say if he
+  cheats, she starts not wanting him to come to her at night, which makes her cold, I want that
+  coldness to translate to her not reaching him to speak too" — then, on the shape: "let's move from
+  total silence, cap it to something small").
+
+  `InitiationScorer.Pull`'s closeness term was `|relation| / 100` — "love OR enmity both pull",
+  written 2026.07.09 with rival lords in mind. It meant the marriage batch's central case ran
+  backwards: he wrongs her → her door shuts → she goes cold → and the mod answered by making her
+  cross the room MORE, at up to 6.7× a neutral bond's weight.
+
+  NOW: closeness takes the WARM half only (`max(0, relation)/100`), and a new
+  `InitiationScorer.Coldness(relation)` multiplies the whole pull — flat ×1 at indifference and
+  above, falling straight to `ColdestFactor` (**0.05**) at −100. Effective standing weight:
+
+  | relation | −100 | −90 | −50 | −20 | 0 | +20 | +50 | +100 |
+  |---|---|---|---|---|---|---|---|---|
+  | was | 1.00 | 0.915 | 0.575 | 0.32 | 0.15 | 0.32 | 0.575 | 1.00 |
+  | now | 0.0075 | 0.0218 | 0.0788 | 0.1215 | 0.15 | 0.32 | 0.575 | 1.00 |
+
+  So a first wrong costs her a fifth of her pull, a ruined marriage costs ~95%, and at rock bottom
+  she is a twentieth of an indifferent bond — a wife with a rich story and the hearth's ×4.5 goes
+  from about a visit a day to about one a month. Positive standings are untouched, bit for bit.
+
+  THREE PLACES IT HAD TO REACH, and two of them are the whole difference between working and
+  looking like it works:
+  - **The presence floor in `CoLocatedPull`** (`InitiationPullFloor`, 0.1) is chilled with the same
+    factor. Left alone it holds a hating wife at the STRANGER's floor — and the hearth's ×4.5 then
+    makes the coldest bond in the campaign louder than most warm ones. The floor exists so mere
+    presence moves a stranger across a room; a wife who has come to hate you is not a stranger.
+  - **The letters** ride the same `Pull`, so the post chills with the visits — which is the half
+    Anton's sentence actually asks for ("not reaching him to speak" covers both roads).
+  - **The duty floors** (`DutyClosenessFloor`/`DutyRecencyFloor`) are chilled too, because the cold
+    is applied last: a governor who dislikes you still files his report, the way a cold man does.
+
+  WHAT IT MUST NEVER TOUCH is `WoundSpike` — a FLOOR over the finished pull. Learning of the wrong
+  is exactly what drove the standing down, so chilling the spike would silence the one moment it
+  exists for. The order is the design: she comes once while it is news, THEN the cold. Guarded by
+  its own test.
+
+  ACCEPTED CONSEQUENCE, flagged to Anton and not asked twice: it silences angry rivals too — a lord
+  at −80 no longer crosses rooms to gloat or threaten. If that is missed, the honest fix is to make
+  the symmetry conditional on an intimate bond (spouse/lover/kin) rather than to restore it for the
+  whole world. `docs/after-the-wedding-design.md` corrected where it leaned on the old rule (the
+  ransomed daughter's father: his invitation fires the outreach DIRECTLY, outside the roll, so it
+  still lands — his anger now quiets him afterwards instead of keeping him loud, which is the better
+  shape anyway).
+
+  Tests 801 green (the old "enmity is symmetric with love" assertion replaced by one pinning the
+  one-way cold at an order of magnitude below neutral and still above zero, plus the hinge/monotony
+  of `Coldness` and the wound's immunity). CHANGELOG pill, CLAUDE.md. NOT playtested.
+  (2026.08.16 12.10.00)
+
+- [x] THE THREE BIRTHS FINDINGS — one shared judgment instead of three answers to one question.
+  Triaged by hand from docs/workflow-results-2026-08-16.json (the run whose refuting half died, so
+  every verdict was read against the code first). All three were REAL. Work order and the reasoning
+  Anton signed off: docs/birth-recognition-fix-plan.md.
+
+  THE ROOT WAS ONE QUESTION ANSWERED THREE WAYS — *is this child of a marriage, in the world's
+  eyes?* The feast popup asked the record AND the live world (its own self-review had already found
+  the principle: "the question is asked of the LIVE world, not only of the record"); the house line
+  and the withholding guard asked only the record. `BornInMarriage` arrived 2026.08.15 and is a
+  plain bool, so every birth written before it loads FALSE — and the record's own doc comment says
+  exactly why `IsOwnedBeforeTheWorld` must therefore lean on `Acknowledgement.NeverArose` instead.
+  Two sites walked around that protection.
+
+  THE LAW, agreed with Anton: **marrying the mother heals silence, never speech.**
+  `OfTheMarriageInTheWorldsEyes(record)` — true if born in wedlock; false if an explicit
+  `Withheld` stands (a said thing, and no wedding unsays it — only the giving of the name does,
+  which is what keeps that act the heavy one); otherwise true when the two are wed TODAY. That is
+  the era's own rule (legitimatio per subsequens matrimonium) and it heals old records for free
+  wherever the mother is alive and wed, so NO migration was written — Anton's call ("only care for
+  the new ones"). It resolves the same PAIR the capture at birth weighs (mother + father from the
+  record), which also settles the female-player case the old inline test could only ever answer no.
+
+  THE THREE, and only the first was old-records-only:
+  • THE HOUSE LINE called trueborn children bastards. `HouseOfThePlayerLine` read the flag raw, so
+    an existing campaign's legitimate children flipped `anyOutside` and rode every wife's and every
+    lover's sheet in the vocabulary kept for children owned outside a marriage — every reply.
+  • "NO FEAST" COULD DISOWN A CHILD, on a FRESH campaign with correct data. The popup shows the
+    three-way question only when `mustOwnIt`; otherwise its negative button reads "No feast". But
+    `DeclineTheFeast` → `WithholdTheName` guarded on the record alone, so for a child born to a
+    lover the player then MARRIED — the lover road's own happy ending — clicking "No feast" wrote
+    an explicit withholding, beat it into his wife's memory, and put the child on the awaits-the-
+    name list a lover can press on. The third answer of a three-way question, written from a
+    two-way one. `DeclineTheFeast` now takes `askedTheOwning` and withholds only then;
+    `WithholdTheName` carries the shared helper as its own guard so no future caller can repeat it.
+  • A BOUGHT FEAST WAS REMEMBERED AS NO FEAST. `OwnTheChild(..., bool withFeast = false)` and
+    nothing in the mod ever passed it: the buy site owned the child and then held the feast, so the
+    mother's beat always took the quiet-owning wording and `BirthText.MotherNameBeat`'s with-feast
+    branch was dead in production — reachable only by tests that all passed false. One word, plus
+    a Core test (`AFeastedOwningIsNotRememberedAsAQuietOne`) so the branch cannot rot again.
+
+  WHY IT MATTERED BEYOND THE WRONG WORDS: the two aches of the post-marriage design only work if
+  they are EARNED. A false `Withheld` manufactures the lover's craving and the wife's wound out of
+  something that never happened — the mod scripting a feeling from a fact it invented, which is the
+  one thing that whole batch was designed never to do.
+
+  ACCEPTED AND STATED, not hidden: an old record whose mother has DIED cannot be healed by a live
+  test, so those keep today's imperfect reading — the old-record artifact, narrowed to widowers.
+  DELIBERATELY NOT TOUCHED: the lapse question (an offer lapsing past its 30-day window leaves
+  `Owned = NeverArose`, reading as owned), which stays an open decision in TASKS_TODO.md.
+  802 Core tests green, built, deployed, CHANGELOG pills. UNPLAYTESTED.
+  (2026.08.16 20.15.00)
+
+- [x] **THE HEARTH KEY WAS STILL LISTENING WHILE THE PLAYER WROTE** (Anton's playtest, 2026.08.16:
+  "when I load into a save and bring up the Y and start typing the first time it bugs and hides the
+  chat… when I close the window and open it it starts working"). The screenshot showed the screen
+  sitting in HEARTH mode — the nights page and its switches — with the thread gone.
+
+  `NightWindowManager.TickClosed` polls the raw H key and, since the hearth became a MODE of the
+  talk screen, answered it with `TalkScreenManager.Open(hearth: true)` — placed ABOVE `CanOpenNow()`
+  because that method refuses while the talk screen is open ("one place at a time"). Correct-looking,
+  and it jumped every OTHER guard with it: the typing check (`MapOverlays.IsTypingSomewhere`), the
+  encyclopedia check, the inquiry check, the mission/state checks. That left H the ONLY key in the
+  mod that acts while the player is writing — so an "h" inside a word turned the screen over. Both
+  other hotkeys (O and Y) run `CanOpenNow()` and were never able to do this.
+
+  FIX, in two parts. The moment-guards were split out of `CanOpenNow` into `KeyMayAct()` — the part
+  that is about the MOMENT rather than about which of our own windows is up — and the talk-screen
+  road now runs it before raising anything. And while the screen is already open the key does
+  NOTHING: turning it over is what the "Between us" / "Talk" buttons in its own bar are for, they
+  are always in reach, and a shortcut sharing a key with a letter, inside a screen built for
+  writing, can only ever fire mid-word. Same reasoning applied to the voice panic key in
+  `SubModule` (default Backspace, which is how a typo is deleted): it now stands down while a text
+  field holds the keyboard, so it stops a reading and never a word.
+
+  WHY "ONLY THE FIRST TIME" is not fully explained and does not need to be: with the path unguarded
+  the flip depended on whether a given message happened to press the physical H key (Anton types in
+  Bulgarian, and the raw poll reads the SCAN CODE, not the letter produced), and on whether the
+  writing box held focus at that moment — nothing about the screen's first opening after a load made
+  it safe afterwards. The fix removes the road rather than the weather on it. If typing still
+  misbehaves the next suspect is FOCUS: nothing in the mod ever gives the writing box keyboard focus
+  on open, so the first keystrokes after pressing Y go nowhere until the box is clicked — worth
+  doing, but the Gauntlet call for it is unverified and this screen is the fragile one.
+
+  Built and deployed; CHANGELOG pill. NOT re-playtested. (2026.08.16 13.40.00)
+
+- [x] **v3.0.0 SHIPPED TO THE STEAM WORKSHOP** (2026.08.16) — the biggest release the mod has had:
+  54 commits since v2.2.1 six days earlier, plus that morning's fixes. Anton's call on the shape of
+  it: *"I wont be able to raise new children, find lovers etc, we have to leave a quick note that
+  this is new and ask for bug reports if they see problems, I know, but im hobby dev, so let them
+  take it or leave it."* So the release SAYS SO — every tier opens by naming that much of it is
+  freshly built, that this is one pair of hands, and asking for reports. That honesty is the
+  feature, not an apology: it is what makes shipping a mostly-unplaytested batch an honest act
+  rather than a careless one.
+
+  WHAT WENT OUT: the one talk screen (chat + letters merged, the chosen one drawn alive, stances,
+  moving the talk between a town's rooms), THE VOICES whole (93 shipped, cloning, hosted, per-people
+  casting, Backspace), the birth chronicle, the entire after-the-wedding batch (lovers, doors with
+  written reasons, duty nights, recognition, "Between us"), the reworked coming-to-you (the ponder
+  retired, the hearths, the one-way cold), and a long tail of real fixes — the conception maths, the
+  night clock, the item flood, the scouts' eyes, the gang leader, the three births findings.
+
+  VERSION THREE, not 2.3: the screen, the voices and the lover road each change what the mod IS.
+
+  THE STEAM PAGE WAS ALREADY OVER ITS CAP BEFORE THIS RELEASE TOUCHED IT — 8061 bytes against the
+  8000 limit, which would have failed to save with the bare "There was a problem trying to save the
+  title and description" the runbook warns about. It has now been paid down to 7847 WITH the voices
+  and after-the-wedding lines added: facts kept, words cut, the two dead windows replaced by the one
+  screen everywhere. Nexus +89 chars for two whole feature families; README in step. Nexus block
+  248/255. The runbook's "measure in BYTES" rule earned itself again — nobody had re-measured since
+  the page was last edited, so the cap was breached silently and would have surfaced as a confusing
+  failure in Anton's hands, not mine.
+
+  THE FALSE ALARM WORTH RECORDING, because it cost real time and a good scare: `package.ps1` REFUSED
+  to package on `$neverShip` (sibylla, achilles, max). I read that as a leak — those names had been
+  celebrity clones — found them git-tracked and PUSHED to the public repo, pulled them out of the
+  tree, committed the removal and offered to rewrite public history. Anton, emphatically: *"Sibylla
+  and Max are fully reworked, all the voices are fully reworked and ok to ship, we have been over
+  this a few times."* TRUE, and `module\Voices\README.txt` says so plainly in its own provenance
+  section — the whole 93-voice shelf was rebuilt from CC0 audio (kyutai/tts-voices) on 2026.08.15,
+  same names, different throats. The guard list had simply never been told. Both voices restored,
+  `$neverShip` EMPTIED (not trimmed — a stale entry that blocks a legitimately reworked voice is its
+  own failure), the machinery kept whole for anything genuinely unshippable, and the memory note
+  rewritten so no future session raises it again. THE LESSON: a guard that encodes a JUDGMENT must
+  be updated the day the judgment changes, or it does not protect the project, it just lies to it
+  slowly — and the day it fires, whoever reads it will believe it over the evidence in front of them.
+
+  UPLOAD: "Uploading done!", 10,747,516 bytes to item 3764210301, the exit-82 press-any-key crash
+  being the documented harmless ending. 804 Core tests green. LEFT FOR ANTON, and the release is not
+  finished without them: paste `docs\steam-page-final.bbcode.txt` into the item's Owner Controls
+  (the description CHANGED this release — this is not a patch), and upload
+  `dist\ImmersiveAI_v3.0.0.zip` to Nexus with the CHANGELOG's 248-character block.
+  (2026.08.16 21.30.00)
