@@ -1583,6 +1583,8 @@ namespace ImmersiveAI
                     PresentBargainIfAny(npc, outcome);
                     // Same law for the troth and the blessing: the words first, then the seal.
                     PresentTrothIfAny(npc, outcome);
+                    // Same law for quests: words delivered first, then trigger consequences.
+                    DispatchQuestOutcomes(outcome.Quest, reply);
                 });
             }
             catch (Exception ex)
@@ -1602,10 +1604,11 @@ namespace ImmersiveAI
         private readonly struct TurnOutcome
         {
             public TurnOutcome(string reply, int feltShift, bool feltShiftApplied, int bargainPrice = 0,
-                Tools.TrothTool.Tally? troth = null, Tools.TrothTool.BlessTally? bless = null)
+                Tools.TrothTool.Tally? troth = null, Tools.TrothTool.BlessTally? bless = null,
+                Tools.QuestTool.Tally? quest = null)
             {
                 Reply = reply; FeltShift = feltShift; FeltShiftApplied = feltShiftApplied;
-                BargainPrice = bargainPrice; Troth = troth; Bless = bless;
+                BargainPrice = bargainPrice; Troth = troth; Bless = bless; Quest = quest;
             }
             public string Reply { get; }
             public int FeltShift { get; }
@@ -1621,6 +1624,7 @@ namespace ImmersiveAI
             public Tools.TrothTool.Tally? Troth { get; }
             /// <summary>The blessing's tally when the head of a house weighed the suitor.</summary>
             public Tools.TrothTool.BlessTally? Bless { get; }
+            public Tools.QuestTool.Tally? Quest { get; }
         }
 
         // The trunk of one player→NPC exchange, shared by the conversation panel and the chat window:
@@ -1742,7 +1746,7 @@ namespace ImmersiveAI
 
             SaveMemory(npc, memory);
             return new TurnOutcome(reply, feltShift, feltShiftApplied,
-                bargain != null && bargain.Laid ? bargain.Price : 0, troth, bless);
+                bargain != null && bargain.Laid ? bargain.Price : 0, troth, bless, quest);
         }
 
         // The NPC's current standing toward the player, read from the live game relation. Used to give

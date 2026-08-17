@@ -5,6 +5,7 @@ using TaleWorlds.CampaignSystem;
 using TaleWorlds.CampaignSystem.Issues;
 using TaleWorlds.Core;
 using TaleWorlds.Library;
+using TaleWorlds.Localization;
 
 namespace ImmersiveAI
 {
@@ -245,7 +246,7 @@ namespace ImmersiveAI
             return "I acknowledge the completion of the deed and receive the delivered goods with gratitude. I speak on in my own authentic words.";
         }
 
-        private void DispatchQuestOutcomes(QuestTool.Tally? quest)
+        private void DispatchQuestOutcomes(QuestTool.Tally? quest, string? spokenReply = null)
         {
             if (quest == null) return;
 
@@ -273,8 +274,12 @@ namespace ImmersiveAI
                         var activeQuest = issueToStart.IssueQuest ?? (npc != null ? QuestTool.GetActiveQuest(npc) : null);
                         if (activeQuest == null && Campaign.Current?.IssueManager != null && npc != null)
                         {
-                            Campaign.Current.IssueManager.StartIssueQuest(npc);
-                            activeQuest = QuestTool.GetActiveQuest(npc);
+                            Campaign.Current.IssueManager.Issues.TryGetValue(npc, out var refreshedIssue);
+                            if (refreshedIssue != null && refreshedIssue.IssueQuest == null)
+                            {
+                                refreshedIssue.StartIssueWithQuest();
+                                activeQuest = refreshedIssue.IssueQuest;
+                            }
                         }
 
                         if (activeQuest != null)
@@ -337,6 +342,13 @@ namespace ImmersiveAI
                             InformationManager.DisplayMessage(
                                 new InformationMessage($"Could not start quest: {title}", new Color(0.9f, 0.4f, 0.4f, 1f)));
                         }
+
+                        // Re-affirm the LLM's spoken response on ResponseVar so native engine defaults do not clobber it
+                        if (!string.IsNullOrWhiteSpace(spokenReply))
+                        {
+                            MBTextManager.SetTextVariable(ResponseVar, spokenReply, false);
+                            _lastNpcLine = spokenReply;
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -364,6 +376,13 @@ namespace ImmersiveAI
                             methodToInvoke.Invoke(questToReport, null);
                             InformationManager.DisplayMessage(
                                 new InformationMessage($"Quest Completed: {title}", new Color(0.95f, 0.85f, 0.35f, 1f)));
+
+                            // Re-affirm the LLM's spoken response on ResponseVar so native engine defaults do not clobber it
+                            if (!string.IsNullOrWhiteSpace(spokenReply))
+                            {
+                                MBTextManager.SetTextVariable(ResponseVar, spokenReply, false);
+                                _lastNpcLine = spokenReply;
+                            }
                         }
                         else
                         {
