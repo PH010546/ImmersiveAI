@@ -106,6 +106,15 @@ had a proper talk.*
 ![Scout searching the web](Screenshots/2_scout_web_search.jpg)
 
 
+## The Quest, the March, and the Sight of You
+
+- **Native quests by conversation.** Walk up to any village headman, guildmaster, or gang leader burdened with trouble. Ask of their plight in plain words, agree to take up the task, and step away without touching a stock quest dialog — their spoken word hands the burden over, and the game’s own ledger records it. Return when the deed is done (deliver a herd, clear bandits, or settle disputes) and report in your own tongue: they take delivery, pay your reward, and remember the favor.
+- **Orientation & travel reckoning.** Ask where any town, castle, or village lies in Calradia. NPCs call back its true cardinal bearing from where you stand (North-East, South-West...) and reckon how many days or hours it will take your warband to march there based on your current party speed.
+- **The eye that sees you.** When meeting someone face-to-face, they take in your true presence — the armor on your back, the helm upon your brow, the steel at your side, your physique, and the impression of your culture. Clad yourself in rags or royal plate; their first glance knows the difference.
+- **Battle bonds and the debt of mercy.** Sparing a lord upon the field or rescuing a captive leaves a lasting psychological impression. Chivalric souls remember mercy without ransom, while calculating minds weigh what subtle scheme lies behind it; a deep sentiment ledger dampens fickle relationship shifts with an organic S-curve.
+- **Clean hiring terms.** When hiring wanderers in a tavern, clear terms separate the one-time signing fee from the daily wage, preventing misunderstandings before the bargain is struck.
+
+
 ## Reaching them
 
 - **Face to face** — they see you coming and greet you as you approach.
